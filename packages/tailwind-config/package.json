@@ -1,0 +1,13 @@
+{
+  "name": "@openfeedback/tailwind-config",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "main": "tailwind.config.ts",
+  "files": [
+    "tailwind.config.ts"
+  ],
+  "dependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}

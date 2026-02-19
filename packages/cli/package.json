@@ -1,0 +1,29 @@
+{
+  "name": "@openfeedback/cli",
+  "version": "0.1.0",
+  "description": "CLI tool for OpenFeedback Engine — changelog generation and feedback sync",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "openfeedback": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@openfeedback/typescript-config": "workspace:*",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@openfeedback/client": "workspace:^",
+    "commander": "^14.0.3"
+  }
+}

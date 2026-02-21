@@ -1,3 +1,41 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    /* Mapping semantic variables to a Dark Slate/Indigo aesthetic */
+    --of-primary-50: #eef2ff;
+    --of-primary-100: #e0e7ff;
+    --of-primary-200: #c7d2fe;
+    --of-primary-300: #a5b4fc;
+    --of-primary-400: #818cf8;
+    --of-primary-500: #6366f1;
+    --of-primary-600: #4f46e5;
+    --of-primary-700: #4338ca;
+    --of-primary-800: #3730a3;
+    --of-primary-900: #312e81;
+
+    /* Neural mapping to dark grays (Zinc) */
+    --of-neutral-50: #fafafa;
+    --of-neutral-100: #f4f4f5;
+    --of-neutral-200: #e4e4e7;
+    --of-neutral-300: #d4d4d8;
+    --of-neutral-400: #a1a1aa;
+    --of-neutral-500: #71717a;
+    --of-neutral-600: #52525b;
+    --of-neutral-700: #3f3f46;
+    --of-neutral-800: #27272a;
+    --of-neutral-900: #18181b;
+
+    /* Override OpenFeedback Core defaults to a full Dark mode */
+    --of-bg-base: #09090b;
+    --of-bg-card: #18181b;
+    --of-border-base: rgba(255, 255, 255, 0.1);
+    --of-text-heading: #ffffff;
+    --of-text-body: #a1a1aa;
+
+    background-color: #09090b;
+    color: #e4e4e7;
+  }
+}

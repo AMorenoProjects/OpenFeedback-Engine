@@ -1,34 +1,30 @@
-// ---------------------------------------------------------------------------
-// Bounded nonce store with FIFO eviction
-// ---------------------------------------------------------------------------
-// In production, replace with Redis SET + TTL or a Bloom filter.
-// This in-memory Set resets on cold start (acceptable for MVP).
-// Bounded to MAX_SIZE to prevent memory exhaustion.
-// ---------------------------------------------------------------------------
-
-const NONCE_MAX_SIZE = 100_000;
-const NONCE_EVICTION_COUNT = 10_000;
-
-const usedNonces = new Set<string>();
+// @ts-ignore - Valid Deno jsr import
+import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
 /**
- * Check if a nonce has been used and mark it.
+ * Check if a nonce has been used and mark it in the database.
  * Returns `true` if the nonce is fresh, `false` if it's a replay.
  */
-export function checkAndMarkNonce(nonceKey: string): boolean {
-  if (usedNonces.has(nonceKey)) {
+export async function checkAndMarkNonce(
+  supabase: SupabaseClient,
+  projectId: string,
+  nonce: string,
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("used_nonces")
+    .insert([{ project_id: projectId, nonce }]);
+
+  if (error) {
+    // 23505 is the PostgreSQL error code for unique violation.
+    // If the insert fails because the primary key already exists, it is a replay.
+    if (error.code === "23505") {
+      console.warn(`[Replay Attack Blocked] Nonce already used: ${nonce}`);
+      return false;
+    }
+    // For other DB errors, we also fail secure to prevent bypassing the check.
+    console.error(`[Nonce DB Error] Failed to insert nonce: ${error.message}`);
     return false;
   }
 
-  if (usedNonces.size >= NONCE_MAX_SIZE) {
-    let evicted = 0;
-    for (const key of usedNonces) {
-      usedNonces.delete(key);
-      evicted++;
-      if (evicted >= NONCE_EVICTION_COUNT) break;
-    }
-  }
-
-  usedNonces.add(nonceKey);
   return true;
 }

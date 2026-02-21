@@ -2,7 +2,7 @@
 
 import { useSuggestions, useVote, type Suggestion } from "@openfeedback/react";
 import { useState } from "react";
-import { signVote } from "@/app/actions";
+import { signVote } from "@/app/actions/openfeedback";
 
 interface SuggestionListProps {
   userId: string;

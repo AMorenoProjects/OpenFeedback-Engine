@@ -87,3 +87,26 @@ export async function deleteProject(projectId: string) {
 
   redirect("/projects");
 }
+
+export async function regenerateHmacSecret(projectId: string) {
+  const { role } = await requireProjectAccess(projectId);
+
+  if (role !== "owner" && role !== "admin") {
+    return { error: "You do not have permission to regenerate the API key." };
+  }
+
+  const hmacSecret = crypto.randomBytes(32).toString("hex");
+  const admin = createAdminClient();
+
+  const { error } = await admin
+    .from(TABLE.PROJECTS)
+    .update({ hmac_secret: hmacSecret, updated_at: new Date().toISOString() })
+    .eq("id", projectId);
+
+  if (error) {
+    return { error: sanitizeError(error) };
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  return { error: null };
+}

@@ -86,7 +86,7 @@ OpenFeedback Engine es un monorepo que contiene tres capas:
 │       ├── _shared/           # Lógica compartida entre Edge Functions
 │       │   ├── auth.ts        # Pipeline de verificación completo
 │       │   ├── crypto.ts      # HMAC, timingSafeEqual, hashUserId
-│       │   ├── nonce.ts       # Set bounded con evicción FIFO
+│       │   ├── nonce.ts       # Verificación async en tabla used_nonces
 │       │   ├── cors.ts        # Headers CORS
 │       │   ├── response.ts    # Helpers de respuesta JSON/error
 │       │   └── validation.ts  # Validación runtime de payloads

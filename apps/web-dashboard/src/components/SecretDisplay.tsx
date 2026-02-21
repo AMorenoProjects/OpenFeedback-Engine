@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { regenerateHmacSecret } from "@/app/(dashboard)/projects/actions";
 
 interface SecretDisplayProps {
+  projectId: string;
   secret: string;
 }
 
-export function SecretDisplay({ secret }: SecretDisplayProps) {
+export function SecretDisplay({ projectId, secret }: SecretDisplayProps) {
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const masked = secret.slice(0, 8) + "\u2022".repeat(24) + secret.slice(-4);
 
@@ -38,6 +41,24 @@ export function SecretDisplay({ secret }: SecretDisplayProps) {
         className="rounded-of border border-of-neutral-300 px-3 py-2 text-sm text-of-neutral-600 hover:bg-of-neutral-100"
       >
         {copied ? "Copied!" : "Copy"}
+      </button>
+
+      <button
+        type="button"
+        disabled={isPending}
+        className="rounded-of border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+        onClick={() => {
+          if (confirm("Are you sure? This will break any application currently using this API Key.")) {
+            startTransition(async () => {
+              const res = await regenerateHmacSecret(projectId);
+              if (res.error) {
+                alert(res.error);
+              }
+            });
+          }
+        }}
+      >
+        {isPending ? "Regenerating..." : "Regenerate"}
       </button>
     </div>
   );

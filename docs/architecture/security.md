@@ -69,9 +69,9 @@ Cada request incluye un `nonce` (valor aleatorio de un solo uso) y un `timestamp
 ### Nonce
 
 - Generado con `crypto.randomBytes(16)` (128 bits de entropía)
-- Verificado contra un **Set en memoria** en la Edge Function
-- El Set está **bounded** a 100,000 entradas con evicción FIFO (los más antiguos se eliminan primero)
-- El nonce se marca como usado **solo después** de verificar la firma HMAC (evita que un atacante "envenene" el store de nonces con requests inválidos)
+- Verificado contra la tabla **`used_nonces`** en PostgreSQL
+- El nonce se marca como usado (via `INSERT`) **solo después** de verificar la firma HMAC (evita que un atacante "envenene" la base de datos con requests inválidos)
+- El PK compuesto `(project_id, nonce)` garantiza que fallará el Request (`23505 Unique Violation`) indicando un replay attack seguro incluso con Edge Functions distribuidas.
 
 ### Timestamp
 
@@ -81,9 +81,7 @@ Cada request incluye un `nonce` (valor aleatorio de un solo uso) y un `timestamp
 
 ### Limitaciones conocidas (MVP)
 
-- El Set de nonces se reinicia en cold starts de la Edge Function
-- No es compartido entre instancias si hay múltiples workers
-- En producción, reemplazar con Redis SET + TTL o un Bloom filter con rotación temporal
+- Las limpiezas de la tabla `used_nonces` no ocurren periódicamente aún mediante Cron Tasks en DB, lo que a futuro podría incidir en tamaño de disco. Resulta en necesidad de un trigger de borrado eventual para timestamps viejos.
 
 ---
 
@@ -180,7 +178,7 @@ Estas reglas no deben violarse en ningún código futuro:
 | 3 | **Comparación constant-time** para firmas (`timingSafeEqual`) | `_shared/crypto.ts` |
 | 4 | **User hash salteado** con `HMAC(user_id, project_secret)` | `_shared/crypto.ts` |
 | 5 | **Sanitizar errores**: nunca exponer `supabaseError.message` al cliente | Edge Functions |
-| 6 | **Nonce store bounded**: máximo 100K entradas con evicción FIFO | `_shared/nonce.ts` |
+| 6 | **Nonce storage asíncrono** en DB (cross-instance safe) | `_shared/nonce.ts` |
 | 7 | **`hmac_secret` nunca llega al browser** | `@openfeedback/client/server` es Node-only |
 | 8 | **Validación runtime** de todo request body (no solo `as` de TypeScript) | `_shared/validation.ts` |
 | 9 | **Nonce se marca después** de verificar firma (evita envenenamiento) | `_shared/auth.ts` |

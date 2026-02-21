@@ -58,7 +58,7 @@ export default async function ProjectDetailPage({ params }: Props) {
           Use this HMAC secret to sign requests from your application.
           Keep it server-side only.
         </p>
-        <SecretDisplay secret={project.hmac_secret} />
+        <SecretDisplay projectId={projectId} secret={project.hmac_secret} />
       </div>
 
       {/* Stats */}

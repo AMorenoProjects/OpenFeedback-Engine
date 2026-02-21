@@ -1,3 +1,4 @@
+// @ts-ignore - Valid Deno jsr import
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { computeHmac, bufferToHex, timingSafeEqual } from "./crypto.ts";
 import { checkAndMarkNonce } from "./nonce.ts";
@@ -42,7 +43,9 @@ export async function verifySignedRequest(
   }
 
   // ---- Supabase service-role client ----
+  // @ts-ignore - Deno is available at edge runtime
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  // @ts-ignore - Deno is available at edge runtime
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) {
     return errorResponse("Server misconfiguration", 500);
@@ -69,8 +72,12 @@ export async function verifySignedRequest(
   }
 
   // ---- Nonce replay (after signature to prevent poisoning) ----
-  const nonceKey = `${auth.project_id}:${auth.nonce}`;
-  if (!checkAndMarkNonce(nonceKey)) {
+  const isNonceValid = await checkAndMarkNonce(
+    supabase,
+    auth.project_id,
+    auth.nonce,
+  );
+  if (!isNonceValid) {
     return errorResponse("Replay detected", 401);
   }
 

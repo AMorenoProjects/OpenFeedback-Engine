@@ -171,19 +171,26 @@ Nada de promesas falsas de "Zero-Knowledge" que rompen funcionalidades. Ofrecemo
 │
 ├── docker/                     # Self-Hosting (placeholder)
 └── docs/                       # Documentacion del proyecto
-    ├── blueprint.md            # Este archivo
-    ├── architecture.md         # Arquitectura del sistema
-    ├── database.md             # Schema de base de datos
-    ├── security.md             # Modelo de seguridad
-    └── sdk-integration.md      # Guia de integracion del SDK
-```
+    ├── blueprint.md            # Este archivo (Vision y Arquitectura)
+    ├── architecture/
+    │   ├── overview.md         # Arquitectura del sistema
+    │   ├── database.md         # Schema de base de datos
+    │   ├── security.md         # Modelo de seguridad
+    │   └── Diagramas/          # SVG Auth Flow
+    ├── guides/                 
+    │   ├── integration.md      # Guia de integracion del SDK
+    │   └── web-dashboard.md    # Manual del panel de administracion
+    └── strategy/               
+        ├── analisis-estrategico.md # Analisis del nicho de mercado
+        └── launch-copy.md      # Textos para lanzamiento
 
 ## 9. Documentacion Adicional
 
 | Documento | Contenido |
 |---|---|
-| [architecture.md](./architecture.md) | Vista general, estructura del monorepo, flujo de datos, responsabilidades de paquetes |
-| [database.md](./database.md) | Tablas, RLS, triggers, disenyo del Pseudonymous Vault |
-| [security.md](./security.md) | Signed Stateless Auth, HMAC, nonces, timing-safe, invariantes de seguridad |
-| [sdk-integration.md](./sdk-integration.md) | Guia paso a paso para integrar en Next.js con ejemplos de codigo |
-| [Diagramas/](./Diagramas/) | Diagramas visuales de autenticacion y vault |
+| [architecture/overview.md](./architecture/overview.md) | Vista general, estructura del monorepo, flujo de datos, responsabilidades de paquetes |
+| [architecture/database.md](./architecture/database.md) | Tablas, RLS, triggers, diseño del Pseudonymous Vault |
+| [architecture/security.md](./architecture/security.md) | Signed Stateless Auth, HMAC, nonces, timing-safe, invariantes de seguridad |
+| [guides/integration.md](./guides/integration.md) | Guia paso a paso para integrar en Next.js con ejemplos de codigo |
+| [guides/web-dashboard.md](./guides/web-dashboard.md) | Configuracion y manejo del Admin Dashboard |
+| [architecture/Diagramas/](./architecture/Diagramas/) | Diagramas visuales de autenticacion y vault |

@@ -2,7 +2,7 @@
 
 import { useSubmitSuggestion } from "@openfeedback/react";
 import { useState } from "react";
-import { signSuggestion } from "@/app/actions";
+import { signSuggestion } from "@/app/actions/openfeedback";
 
 interface NewSuggestionFormProps {
   userId: string;

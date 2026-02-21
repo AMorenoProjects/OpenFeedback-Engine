@@ -1,0 +1,15 @@
+"use server";
+
+import { createServerSideSigner } from "@openfeedback/client";
+
+/**
+ * OpenFeedback - Server-Side Request Signer
+ * This function safely signs vote and suggestion requests server-side.
+ * It prevents exposing your secret API key to the client.
+ */
+
+const { signSuggestion, signVote } = createServerSideSigner({
+  hmacSecret: process.env.OPENFEEDBACK_HMAC_SECRET!,
+});
+
+export { signSuggestion, signVote };

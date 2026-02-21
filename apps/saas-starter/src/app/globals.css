@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+:root {
+  /* SAAS STARTER - OPENFEEDBACK CUSTOM THEME 
+     Matching "dark mode" aesthetic for the entire app. */
+
+  /* Global App Backgrounds */
+  --bg-app-base: #0f1115;
+  /* Slate-950 base */
+  --bg-app-panel: #18181b;
+  /* Zinc-900 panels */
+
+  /* Text */
+  --text-app-primary: #f8fafc;
+  --text-app-secondary: #94a3b8;
+
+  /* Overriding OpenFeedback Core Variables for Dark Mode */
+  --of-primary-50: #eef2ff;
+  --of-primary-100: #e0e7ff;
+  --of-primary-200: #c7d2fe;
+  --of-primary-300: #a5b4fc;
+  --of-primary-400: #818cf8;
+  --of-primary-500: #6366f1;
+  /* Indigo-500 */
+  --of-primary-600: #4f46e5;
+  --of-primary-700: #4338ca;
+  --of-primary-800: #3730a3;
+  --of-primary-900: #312e81;
+
+  --of-neutral-50: #f8fafc;
+  --of-neutral-100: #f1f5f9;
+  --of-neutral-200: #e2e8f0;
+  --of-neutral-300: #cbd5e1;
+  --of-neutral-400: #94a3b8;
+  --of-neutral-500: #64748b;
+  --of-neutral-600: #475569;
+  --of-neutral-700: #334155;
+  --of-neutral-800: #1e293b;
+  --of-neutral-900: #0f172a;
+
+  /* Semantic Variables Mapped to Dark theme */
+  --of-bg-base: #0f1115;
+  /* matches --bg-app-base */
+  --of-bg-card: #18181b;
+  /* matches --bg-app-panel */
+  --of-border-base: #27272a;
+  /* Zinc-800 */
+  --of-text-body: #a1a1aa;
+  /* Zinc-400 */
+  --of-text-heading: #f4f4f5;
+  /* Zinc-100 */
+}
+
+@theme inline {
+  --color-background: var(--bg-app-base);
+  --color-foreground: var(--text-app-primary);
+  --color-of-bg-base: var(--of-bg-base);
+  --color-of-bg-card: var(--of-bg-card);
+  --color-of-border-base: var(--of-border-base);
+  --color-of-text-heading: var(--of-text-heading);
+  --color-of-text-body: var(--of-text-body);
+}
+
+body {
+  background: var(--bg-app-base);
+  color: var(--text-app-primary);
+  /* Optional: smoothing and default scrollbar hidden for cleaner SaaS look */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glassmorphism utilities used in layouts */
+.glass-panel {
+  @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-xl;
+}

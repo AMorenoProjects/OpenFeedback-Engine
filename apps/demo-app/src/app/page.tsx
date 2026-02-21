@@ -11,19 +11,28 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export default function Home() {
   return (
-    <main className="mx-auto max-w-2xl px-4 py-12">
-      <h1 className="text-2xl font-bold text-of-neutral-900 mb-2">
-        OpenFeedback Demo
-      </h1>
-      <p className="text-of-neutral-500 mb-8">
-        Validation app for the OpenFeedback Engine core.
-      </p>
+    <main className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight text-white">
+          Feature Requests
+        </h1>
+        <p className="text-zinc-400 mt-2 text-sm">
+          Vote on existing ideas or suggest new ones to help us prioritize our roadmap.
+        </p>
+      </div>
 
-      <FeedbackBoard
-        config={config}
-        anonKey={anonKey}
-        userId={DEMO_USER_ID}
-      />
+      <div className="rounded-xl border border-white/10 bg-[#18181b]/50 backdrop-blur-xl shadow-2xl p-6 sm:p-10 relative overflow-hidden">
+        {/* Subtle inner glow */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-50 pointer-events-none"></div>
+
+        <div className="relative z-10">
+          <FeedbackBoard
+            config={config}
+            anonKey={anonKey}
+            userId={DEMO_USER_ID}
+          />
+        </div>
+      </div>
     </main>
   );
 }

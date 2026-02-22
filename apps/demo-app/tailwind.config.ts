@@ -6,6 +6,11 @@ const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-space-grotesk)', 'sans-serif'],
+        mono: ['var(--font-jetbrains-mono)', 'monospace'],
+        display: ['var(--font-orbitron)', 'sans-serif'],
+      },
       colors: {
         "of-bg-base": "var(--of-bg-base)",
         "of-bg-card": "var(--of-bg-card)",

@@ -1,0 +1,43 @@
+name: 'OpenFeedback Release'
+description: 'Generate changelog and mark suggestions as shipped via OpenFeedback Edge Function'
+inputs:
+  version:
+    description: 'The release version (e.g., v1.2.0)'
+    required: true
+  since:
+    description: 'Start scanning from this git ref or date'
+    required: false
+  until:
+    description: 'End scanning at this git ref (default: HEAD)'
+    required: false
+    default: 'HEAD'
+  supabase_url:
+    description: 'The Supabase API URL'
+    required: true
+  supabase_service_key:
+    description: 'The Supabase Service Role Key'
+    required: true
+  project_id:
+    description: 'The OpenFeedback Project ID'
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Run OpenFeedback CLI Release
+      shell: bash
+      env:
+        OPENFEEDBACK_API_URL: ${{ inputs.supabase_url }}
+        OPENFEEDBACK_SERVICE_KEY: ${{ inputs.supabase_service_key }}
+        OPENFEEDBACK_PROJECT_ID: ${{ inputs.project_id }}
+      run: |
+        CMD="npx --yes @openfeedback/cli@latest release \"${{ inputs.version }}\""
+        if [ -n "${{ inputs.since }}" ]; then
+          CMD="$CMD --since \"${{ inputs.since }}\""
+        fi
+        if [ -n "${{ inputs.until }}" ]; then
+          CMD="$CMD --until \"${{ inputs.until }}\""
+        fi
+        eval $CMD
+branding:
+  icon: 'message-square'
+  color: 'blue'

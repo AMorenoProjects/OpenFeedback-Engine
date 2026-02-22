@@ -211,3 +211,26 @@ Preset compartido con escalas de color propias:
 - `of-primary-{50..900}` — azul para acciones principales
 - `of-neutral-{50..900}` — grises para UI base
 - `borderRadius.of` — `0.5rem` estándar
+
+---
+
+## 6. Integración y Webhooks (Phase 5)
+
+Para soportar notificaciones en herramientas de colaboración nativas como Slack o Discord, OpenFeedback implementa un sistema de **Outbound Webhooks**.
+
+1. Una tabla `webhooks` almacena los endpoints configurados por proyecto.
+2. Un **Trigger de PostgreSQL** escucha eventos de `INSERT` o `UPDATE` (ej. cuando el estado cambia a `shipped`) en la tabla `suggestions`.
+3. El trigger encola y transmite de forma fiable el payload asincrónicamente usando `pg_net` hacia la Edge Function `dispatch-webhook`.
+4. `dispatch-webhook` transforma el payload estándar a formatos enriquecidos (como Embeds de Discord) y ejecuta el HTTP POST final al consumidor.
+
+*Ejemplo de Evento Discord: suggestion.created*
+```json
+{
+  "content": "🚀 **New Suggestion Created:** Export to PDF",
+  "embeds": [{
+       "title": "Export to PDF",
+       "color": 5814783,
+       "footer": { "text": "ID: [...]" }
+  }]
+}
+```

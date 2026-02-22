@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { registerSyncCommand } from "./commands/sync.js";
 import { registerChangelogCommand } from "./commands/changelog.js";
 import { registerInitCommand } from "./commands/init.js";
+import { registerReleaseCommand } from "./commands/release.js";
 
 const program = new Command();
 
@@ -13,5 +14,6 @@ program
 registerSyncCommand(program);
 registerChangelogCommand(program);
 registerInitCommand(program);
+registerReleaseCommand(program);
 
 program.parse();

@@ -41,12 +41,12 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result. Navigate to **Feedback & Roadmap** in the sidebar to see the engine in action.
+Open [http://localhost:3000](http://localhost:3000) with your browser. Navigate to **Feedback & Roadmap** in the sidebar to see the engine in action.
 
 ## 📦 What's Included?
 
 - **Premium Dark Mode UI**: A generic Sidebar and Header layout featuring glassmorphism elements tailored for modern SaaS.
-- **Server Actions Pre-Wired**: Secure cryptographic signing happens out of the box in `app/actions/openfeedback.ts`, mimicking the exact signature logic dictated by the Engine.
+- **Signed Stateless Auth**: Secure cryptographic signing happens out of the box in `app/actions/openfeedback.ts`, mimicking the exact signature logic dictated by the Engine. Your backend validates every action at the edge, ensuring zero user friction.
 - **Root Provider**: `<OpenFeedbackProvider>` injected at the `layout.tsx` level so the board can be summoned anywhere in your Component Tree.
 
 ## 🌐 The Tech Stack
@@ -55,7 +55,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - [Tailwind CSS 4](https://tailwindcss.com/)
 - [Lucide Icons](https://lucide.dev/)
 - [@openfeedback/react](https://github.com/jandro/OpenFeedback-Engine) for the UI Primitives.
-- [@openfeedback/server](https://github.com/jandro/OpenFeedback-Engine) for the secure edge signing.
+- [@openfeedback/client](https://github.com/jandro/OpenFeedback-Engine) for the secure edge signing.
 
 ---
 *Built as a reference template for OpenFeedback Engine Phase 2.*

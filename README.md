@@ -9,6 +9,8 @@
   </p>
   <p>
     <em>Stop sacrificing user retention with third-party feedback portals that require a separate login.</em>
+    <br/>
+    <a href="./README.es.md">🇪🇸 Leer en Español</a>
   </p>
 </div>
 
@@ -16,17 +18,24 @@
 
 ## 🚀 The "Aha!" Moment
 
-**OpenFeedback Engine** is an open-source infrastructure designed for SaaS founders and developers who want to integrate feedback collection, voting, and roadmaps directly into their applications without forcing users to create external accounts or breaking the visual identity of their product.
+**OpenFeedback Engine** is an open-source infrastructure designed for SaaS founders and independent developers who want to integrate feedback collection, voting, and roadmaps directly into their applications. 
 
-Unlike monolithic solutions (Canny, Jira Product Discovery), OpenFeedback operates as a set of primitives (SDKs and APIs) that integrate into your Next.js App Router, using **cryptographic HMAC signatures** to validate actions securely on the edge.
+**The Problem with traditional tools:**
+- **User Friction:** Forcing users to register on external portals (like Canny) drastically reduces participation (often to <5%).
+- **Visual Inconsistency:** Embeds and iframes break your carefully crafted user experience.
+- **Privacy Risks:** Storing user data in centralized third-party platforms complicates GDPR compliance.
+- **Workflow Disconnect:** Feedback sits in a silo, detached from your Git workflow and shipping cycle.
+
+**Our Solution:**
+OpenFeedback operates as a set of developer-first primitives (SDKs and APIs) that integrate seamlessly into your Next.js App Router. It uses **cryptographic HMAC signatures** to secure actions on the edge, enabling your users to vote and comment directly inside your SaaS, with zero friction and total control over data sovereignty.
 
 ## ✨ Key Features & USP
 
 - **Zero-Friction "No-Login"** 🚫 Let your users vote and suggest while remaining inside your SaaS. No magic links, no separate accounts.
-- **Signed Stateless Auth** 🔐 Cryptographic authentication without session storage via HMAC-SHA256 signatures.
-- **Pseudonymous Vault** 🛡️ GDPR-first privacy. Public votes are anonymous; emails are encrypted and stored in an isolated Supabase vault.
-- **Headless by Design** 🎨 Full UI control. Use our Drop-in B2B UI or build your own with unstyled hooks.
-- **Self-Hosted Data Sovereignty** 🏠 You own the data. Runs directly on your Supabase instance with Row Level Security (RLS).
+- **Signed Stateless Auth** 🔐 Cryptographic authentication without session storage via HMAC-SHA256 signatures. Your backend validates every action at the edge.
+- **Pseudonymous Vault** 🛡️ GDPR-first privacy. Public votes are anonymous; user identities (like emails) are encrypted and stored in an isolated Supabase vault for just-in-time notifications.
+- **Headless by Design** 🎨 Full UI control. Use our drop-in Radix/Tailwind components or build your own with unstyled hooks (`useVote`, `useSuggestions`).
+- **Self-Hosted Data Sovereignty** 🏠 You own the data. Runs directly on your Supabase instance with Row Level Security (RLS) enabled.
 
 ## 🏗️ How it Works (Architecture)
 
@@ -52,51 +61,66 @@ sequenceDiagram
     NextJS-->>User: 9. UI Updates (Optimistic)
 ```
 
-## ⚡ Quick Start (Setup in 2 Minutes)
+## ⚡ Quick Start (Next.js App Router)
 
-We provide a zero-configuration CLI to scaffold OpenFeedback directly into your existing Next.js (App Router) project constraint-free.
+### Prerequisites
+- Node.js >= 20
+- A Supabase Project
 
-### 1. Initialize the Engine
-Run the CLI at the root of your Next.js project:
-
+### 1. Installation
+Install the core packages:
 ```bash
-npx @openfeedback/cli init
+npm install @openfeedback/react @openfeedback/client
 ```
 
-This command will:
-1. Create the secure Server Actions inside `app/actions/openfeedback.ts`.
-2. Wrap your `app/layout.tsx` with the `<OpenFeedbackProvider>`.
-3. Append the required `.env.local` placeholders.
-
-### 2. Drop the UI Component
-Import the pre-built `FeedbackBoard` anywhere in your app:
+### 2. Configure the Provider
+Wrap your layout or page with the required context. The `authContext` is generated server-side.
 
 ```tsx
-import { FeedbackBoard } from "@openfeedback/react";
+// app/feedback/page.tsx
+import { OpenFeedbackProvider, FeedbackBoard } from "@openfeedback/react";
+import { signVoteRequest } from "@/actions/openfeedback"; // Your server action
 
-export default function MyFeedbackPage() {
+export default async function FeedbackPage() {
+  const user = await getCurrentUser();
+  const signatureData = await signVoteRequest(user.id);
+  
   return (
-    <div className="max-w-4xl mx-auto p-8">
+    <OpenFeedbackProvider
+      config={{ projectId: "...", apiUrl: "https://your-project.supabase.co" }}
+      anonKey="sb-anon-key"
+      authContext={{
+        userId: user.id,
+        signature: signatureData.signature,
+        timestamp: signatureData.timestamp,
+        nonce: signatureData.nonce,
+      }}
+    >
       <FeedbackBoard />
-    </div>
+    </OpenFeedbackProvider>
   );
 }
 ```
 
-### 3. Configure Supabase (Admin Dashboard)
-Deploy the `apps/web-dashboard` or run it locally to generate your `HMAC Secret` and view the incoming feedback. See the full [Integration Guide](./docs/integration-guide.md).
+*For more details, see the [Integration Guide](./docs/guides/integration.md).*
 
 ---
 
 ## 📦 Monorepo Structure
 
 - **`packages/@openfeedback/client`**: Core logic and Server Side Signer algorithms.
-- **`packages/@openfeedback/react`**: React SDK containing Providers and beautiful UI components.
+- **`packages/@openfeedback/react`**: React SDK containing Providers, Hooks (`useVote`), and UI components.
 - **`packages/@openfeedback/cli`**: The setup CLI.
-- **`apps/saas-starter`**: 🟢 **Push-to-Deploy Template:** A complete generic B2B SaaS dashboard using Next.js 15, Tailwind 4, and OpenFeedback out of the box.
+- **`apps/saas-starter`**: 🟢 **Push-to-Deploy Template:** A complete generic B2B SaaS dashboard using Next.js 15, Tailwind 4, and OpenFeedback.
 - **`apps/demo-app`**: Reference implementation showcasing the SDK.
-- **`apps/web-dashboard`**: Administrative portal to manage suggestions and copy API internal keys.
+- **`apps/web-dashboard`**: Administrative portal to manage suggestions.
 
-## 📄 License
+## 🗺️ Project Status & Roadmap
 
-This project is licensed under the [MIT License](LICENSE). Build something awesome.
+- ✅ **Phase 1:** Scaffold (Turborepo setup, shared configs)
+- ✅ **Phase 2:** Core Engine (PostgreSQL Schema, RLS, Edge Functions, React Hooks)
+- ⏳ **Phase 3:** Demo App & Ecosystem (Next.js implementations)
+
+## 📄 License & Commercial
+
+The core engine and SDKs are licensed under the [MIT License](LICENSE).

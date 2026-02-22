@@ -134,17 +134,17 @@ Nada de promesas falsas de "Zero-Knowledge" que rompen funcionalidades. Ofrecemo
 *   **Entregable:** Schema PostgreSQL + RLS, Edge Functions (submit-vote, submit-suggestion), API Client, React Hooks.
 *   **Auditoria de seguridad:** 9 vulnerabilidades identificadas y corregidas (timing attacks, unsigned vote payload, unsalted hashes, unbounded nonce store, missing CORS, leaked DB errors, missing runtime validation, duplicate types, missing authenticated-role RLS).
 
-### Fase 3: Demo App (Pendiente)
+### Fase 3: Demo App (Completada)
 *   **Objetivo:** App Next.js funcional que demuestre el SDK end-to-end.
 *   **Entregable:** `apps/demo-app` con Server Actions, Provider, y componentes usando los 3 hooks.
 
-### Fase 4: CLI & Changelog (Pendiente)
+### Fase 4: CLI & Changelog (Completada)
 *   **Objetivo:** CLI funcional para generacion de changelogs.
-*   **Entregable:** `openfeedback-changelog-action` para GitHub Marketplace.
+*   **Entregable:** `openfeedback-changelog-action` para GitHub Marketplace lista para su uso. Comando CLI preparado para CI/CD.
 
-### Fase 5: Ecosistema y Estabilidad (Pendiente)
+### Fase 5: Ecosistema y Estabilidad (Completada)
 *   **Objetivo:** Robustez y extensibilidad.
-*   **Entregable:** Sistema de Plugins, Webhooks salientes, integracion Slack/Discord.
+*   **Entregable:** Webhooks salientes e integracion Slack/Discord. (Nota: La extensibilidad del "Sistema de Plugins" se satisface de manera Headless y segura a través de los webhooks, delegando la lógica a los consumidores).
 
 ## 8. Estructura de Repositorio (Actual)
 

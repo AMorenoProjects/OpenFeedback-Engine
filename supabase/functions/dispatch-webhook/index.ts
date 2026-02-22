@@ -91,6 +91,11 @@ Deno.serve(async (req: Request) => {
                         "footer": { "text": `ID: ${record.id}` }
                     }]
                 };
+            } else if (hook.url.includes("hooks.slack.com")) {
+                const text = eventType === "suggestion.created"
+                    ? `🚀 *New Suggestion Created:*\n>${record.title}\nID: \`${record.id}\``
+                    : `✅ *Suggestion Shipped:*\n>${record.title}\nID: \`${record.id}\``;
+                body = { "text": text };
             }
 
             const res = await fetch(hook.url, {

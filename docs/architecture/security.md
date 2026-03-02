@@ -12,35 +12,34 @@ OpenFeedback no usa sesiones, tokens JWT propios ni cookies. En su lugar, la app
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                     HOST APP (Server)                    │
+│                     BROWSER (SDK)                        │
 │                                                         │
-│  1. Construye el body completo:                         │
-│     body = JSON.stringify({                             │
-│       auth: { user_id, nonce, timestamp, project_id },  │
-│       vote: { suggestion_id, direction }                │
-│     })                                                  │
-│                                                         │
-│  2. Firma el body completo:                             │
-│     signature = HMAC-SHA256(body, hmac_secret)          │
-│                                                         │
-│  3. Envía signature + auth context al browser           │
+│  1. Envía el intento de escritura en JSON plano:        │
+│     POST /api/openfeedback                              │
+│     { action: "vote", payload: {...} }                  │
 └────────────────────────┬────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────┐
-│                     BROWSER (SDK)                        │
+│              PROXY ROUTE HANDLER (Next.js)               │
 │                                                         │
-│  4. Envía POST a Edge Function con:                     │
-│     Header: x-openfeedback-signature = <signature>      │
-│     Body: <el mismo JSON que fue firmado>               │
+│  2. Obtiene sesión de usuario (zero trust al browser)   │
+│  3. Construye el body completo:                         │
+│     body = JSON.stringify({                             │
+│       auth: { user_id, nonce, timestamp, project_id },  │
+│       vote: { suggestion_id, direction }                │
+│     })                                                  │
+│  4. Firma el body completo:                             │
+│     signature = HMAC-SHA256(body, hmac_secret)          │
+│  5. Envía POST a Edge Function con el header de firma   │
 └────────────────────────┬────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │                  EDGE FUNCTION (Deno)                    │
 │                                                         │
-│  5. Lee rawBody como string (NO re-serializa)           │
-│  6. Valida estructura del body (runtime checks)         │
+│  6. Lee rawBody como string (NO re-serializa)           │
+│  7. Valida estructura del body (runtime checks)         │
 │  7. Verifica timestamp ±5 minutos                       │
 │  8. Busca project.hmac_secret en DB                     │
 │  9. expected = HMAC-SHA256(rawBody, secret)             │

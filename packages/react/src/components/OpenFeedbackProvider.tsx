@@ -1,11 +1,18 @@
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useMemo, useRef, useCallback } from "react";
 import { OpenFeedbackClient } from "@openfeedback/client";
-import type { OpenFeedbackConfig, AuthContext } from "../types";
+import type { Suggestion, OpenFeedbackConfig, OpenFeedbackProviderProps } from "../types";
+
+type SuggestionUpdateCallback = (
+  id: string,
+  updater: (s: Suggestion) => Suggestion,
+) => void;
 
 interface OpenFeedbackContextValue {
   config: OpenFeedbackConfig;
+  proxyUrl: string;
   client: OpenFeedbackClient;
-  authContext: AuthContext | null;
+  subscribeSuggestionUpdate: (cb: SuggestionUpdateCallback) => () => void;
+  emitSuggestionUpdate: SuggestionUpdateCallback;
 }
 
 const OpenFeedbackContext = createContext<OpenFeedbackContextValue | null>(null);
@@ -20,20 +27,11 @@ export function useOpenFeedback(): OpenFeedbackContextValue {
   return context;
 }
 
-interface ProviderProps {
-  config: OpenFeedbackConfig;
-  /** Supabase anon key — required for public read queries via PostgREST */
-  anonKey: string;
-  authContext?: AuthContext;
-  children: React.ReactNode;
-}
-
 export function OpenFeedbackProvider({
   config,
   anonKey,
-  authContext,
   children,
-}: ProviderProps): React.JSX.Element {
+}: OpenFeedbackProviderProps): React.JSX.Element {
   const client = useMemo(
     () =>
       new OpenFeedbackClient({
@@ -44,13 +42,34 @@ export function OpenFeedbackProvider({
     [config.apiUrl, config.projectId, anonKey],
   );
 
+  const listenersRef = useRef(new Set<SuggestionUpdateCallback>());
+
+  const subscribeSuggestionUpdate = useCallback(
+    (cb: SuggestionUpdateCallback) => {
+      listenersRef.current.add(cb);
+      return () => {
+        listenersRef.current.delete(cb);
+      };
+    },
+    [],
+  );
+
+  const emitSuggestionUpdate: SuggestionUpdateCallback = useCallback(
+    (id, updater) => {
+      listenersRef.current.forEach((cb) => cb(id, updater));
+    },
+    [],
+  );
+
   const value = useMemo(
     () => ({
       config,
+      proxyUrl: config.proxyUrl ?? "/api/openfeedback",
       client,
-      authContext: authContext ?? null,
+      subscribeSuggestionUpdate,
+      emitSuggestionUpdate,
     }),
-    [config, client, authContext],
+    [config, client, subscribeSuggestionUpdate, emitSuggestionUpdate],
   );
 
   return (

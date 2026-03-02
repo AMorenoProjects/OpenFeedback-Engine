@@ -12,15 +12,15 @@ OpenFeedback Engine es un monorepo que contiene tres capas:
 ┌─────────────────────────────────────────────────────┐
 │                    Host App (Next.js)                │
 │                                                     │
-│  Server Action          Browser                     │
+│ Route Handler (Proxy)   Browser                     │
 │  ┌──────────────┐      ┌──────────────────────────┐ │
-│  │ signRequest  │──sig─▶│ <OpenFeedbackProvider>   │ │
-│  │ generateNonce│      │  ├─ useSuggestions()      │ │
+│  │OpenFeedback- │◀─req─│ <OpenFeedbackProvider>   │ │
+│  │    Proxy     │      │  ├─ useSuggestions()      │ │
 │  └──────────────┘      │  ├─ useVote()            │ │
 │  @openfeedback/        │  └─ useSubmitSuggestion() │ │
-│  client/server         │  @openfeedback/react      │ │
+│  client/next           │  @openfeedback/react      │ │
 │                        └──────────┬───────────────┘ │
-└───────────────────────────────────┼─────────────────┘
+└───────────┬───────────────────────┼─────────────────┘
                                     │
                           ┌─────────▼─────────┐
                           │  Supabase          │
@@ -111,16 +111,17 @@ OpenFeedback Engine es un monorepo que contiene tres capas:
 
 ### `@openfeedback/client` (packages/client)
 
-El contrato compartido entre frontend y backend. Dos entry points:
+El contrato compartido entre frontend y backend. Tres entry points:
 
 | Import | Entorno | Contenido |
 |---|---|---|
 | `@openfeedback/client` | Browser + Node | Schemas Zod, tipos, `OpenFeedbackClient`, constantes |
 | `@openfeedback/client/server` | Solo Node.js | `signRequestBody()`, `generateNonce()` (usa `node:crypto`) |
+| `@openfeedback/client/next` | Server (Next.js) | `OpenFeedbackProxy()` Route Handler preconfigurado |
 
 **`OpenFeedbackClient`** es el wrapper HTTP tipado:
 - **Reads** (`getSuggestions`, `getSuggestion`, `hasVoted`): usan PostgREST con `anon key`
-- **Writes** (`submitVote`, `submitSuggestion`): llaman Edge Functions con firma HMAC en header `x-openfeedback-signature`
+- **Writes** (`submitVote`, `submitSuggestion`): Si se inyecta por el Proxy, se llaman hacia el Proxy. Internamente llaman a Edge Functions con firma HMAC.
 
 ### `@openfeedback/react` (packages/react)
 
@@ -128,11 +129,11 @@ SDK de React. Depende de `@openfeedback/client`.
 
 | Export | Tipo | Descripción |
 |---|---|---|
-| `<OpenFeedbackProvider>` | Componente | Instancia `OpenFeedbackClient`, provee contexto |
-| `useOpenFeedback()` | Hook | Acceso al client y auth context |
+| `<OpenFeedbackProvider>` | Componente | Instancia `OpenFeedbackClient`, provee contexto (`proxyUrl`) |
+| `useOpenFeedback()` | Hook | Acceso al client y configuración |
 | `useSuggestions()` | Hook | Fetch de sugerencias con estado de loading/error |
-| `useVote()` | Hook | Votar/desvotar (requiere firma server-side) |
-| `useSubmitSuggestion()` | Hook | Crear sugerencia (requiere firma server-side) |
+| `useVote()` | Hook | Votar/desvotar (routea al proxy interno de Next.js) |
+| `useSubmitSuggestion()` | Hook | Crear sugerencia (routea al proxy interno de Next.js) |
 | `cn()` | Utilidad | `clsx` + `tailwind-merge` para componentes headless |
 
 ### `@openfeedback/cli` (packages/cli)
@@ -162,19 +163,19 @@ Request → CORS check → Parse JSON → Validate body → Check timestamp
 ## 4. Flujo de Datos: Ciclo de Vida de un Voto
 
 ```
-1. Host App (Server Action):
+1. Browser (React Hook):
    │
-   ├─ auth = { user_id, nonce: generateNonce(), timestamp: Date.now(), project_id }
+   ├─ useVote()
+   └─ POST /api/openfeedback
+       Body: { action: "vote", payload: {...} }
+
+2. Host App (Proxy Route Handler):
+   │
+   ├─ sesion = getUser()
+   ├─ auth = { user_id: sesion.id, nonce: generateNonce(), timestamp: Date.now(), project_id }
    ├─ body = JSON.stringify({ auth, vote: { suggestion_id, direction: "up" } })
    ├─ signature = signRequestBody(body, HMAC_SECRET)
-   └─ Retorna { signature, auth } al browser
-
-2. Browser (React Hook):
-   │
-   ├─ useVote() → client.submitVote(vote, { signature, auth })
-   └─ POST /functions/v1/submit-vote
-       Headers: { x-openfeedback-signature: "abc123..." }
-       Body: { auth: {...}, vote: {...} }
+   └─ POST /functions/v1/submit-vote (Headers: { x-openfeedback-signature })
 
 3. Edge Function (submit-vote):
    │
@@ -186,7 +187,7 @@ Request → CORS check → Parse JSON → Validate body → Check timestamp
    ├─ Marca nonce como usado
    ├─ userHash = HMAC(user_id, project_secret)  ← salted per-project
    └─ INSERT INTO votes (suggestion_id, user_hash, project_id)
-
+```
 4. Trigger PostgreSQL:
    │
    └─ UPDATE suggestions SET upvotes = upvotes + 1

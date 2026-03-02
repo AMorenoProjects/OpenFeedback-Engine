@@ -18,7 +18,7 @@ interface UseSuggestionsReturn {
 export function useSuggestions(
   options?: UseSuggestionsOptions,
 ): UseSuggestionsReturn {
-  const { client } = useOpenFeedback();
+  const { client, subscribeSuggestionUpdate } = useOpenFeedback();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -39,6 +39,14 @@ export function useSuggestions(
   useEffect(() => {
     void fetchSuggestions();
   }, [fetchSuggestions]);
+
+  useEffect(() => {
+    return subscribeSuggestionUpdate((id, updater) => {
+      setSuggestions((prev) =>
+        prev.map((s) => (s.id === id ? updater(s) : s)),
+      );
+    });
+  }, [subscribeSuggestionUpdate]);
 
   return { suggestions, isLoading, error, refetch: fetchSuggestions };
 }

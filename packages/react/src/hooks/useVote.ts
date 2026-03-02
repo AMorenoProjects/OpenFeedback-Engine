@@ -1,77 +1,102 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useOpenFeedback } from "../components/OpenFeedbackProvider";
-import type { VoteDirectionType } from "../types";
-
-/**
- * Per-call signed auth parameters.
- * Each operation needs a fresh nonce + timestamp + signature to prevent
- * replay attacks. The host app's Server Action generates these.
- */
-export interface SignedAuthParams {
-  signature: string;
-  nonce: string;
-  timestamp: number;
-}
+import type { VoteDirectionType, Suggestion } from "../types";
 
 interface UseVoteReturn {
   vote: (
     suggestionId: string,
     direction: VoteDirectionType,
-    signedAuth: SignedAuthParams,
   ) => Promise<{ ok: true; action: string }>;
   isLoading: boolean;
+  isVotingOn: (id: string) => boolean;
   error: Error | null;
 }
 
+function applyDelta(delta: number): (s: Suggestion) => Suggestion {
+  return (s) => ({ ...s, upvotes: Math.max(0, s.upvotes + delta) });
+}
+
 /**
- * Hook for casting/removing votes via the submit-vote Edge Function.
+ * Hook for casting/removing votes.
+ * Routes the request through the configured OpenFeedback proxy to securely
+ * build the API signature server-side.
  *
- * Each call requires a fresh `signedAuth` with a unique nonce, current
- * timestamp, and a signature computed server-side over the full JSON body
- * (auth + vote). See `@openfeedback/client/server` for `signRequestBody`.
+ * Features:
+ * - Optimistic UI updates via Provider pub/sub
+ * - Automatic rollback on server error
+ * - Per-suggestion anti-spam lock (concurrent votes on same suggestion are throttled)
  */
 export function useVote(): UseVoteReturn {
-  const { client, authContext, config } = useOpenFeedback();
-  const [isLoading, setIsLoading] = useState(false);
+  const { proxyUrl, config, emitSuggestionUpdate } = useOpenFeedback();
   const [error, setError] = useState<Error | null>(null);
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+
+  // Ref mirror of pendingIds for synchronous checks inside the async callback
+  const pendingRef = useRef<Set<string>>(new Set());
+
+  const isVotingOn = useCallback(
+    (id: string) => pendingIds.has(id),
+    [pendingIds],
+  );
 
   const vote = useCallback(
     async (
       suggestionId: string,
       direction: VoteDirectionType,
-      signedAuth: SignedAuthParams,
-    ) => {
-      if (!authContext) {
-        throw new Error("useVote requires an authContext in <OpenFeedbackProvider>");
+    ): Promise<{ ok: true; action: string }> => {
+      // Anti-spam: reject if a vote for this suggestion is already in flight
+      if (pendingRef.current.has(suggestionId)) {
+        return { ok: true, action: "throttled" };
       }
 
-      setIsLoading(true);
+      // Mark in-flight
+      pendingRef.current.add(suggestionId);
+      setPendingIds((prev) => new Set(prev).add(suggestionId));
       setError(null);
 
+      // Optimistic update
+      const delta = direction === "up" ? 1 : -1;
+      emitSuggestionUpdate(suggestionId, applyDelta(delta));
+
       try {
-        const result = await client.submitVote(
-          { suggestion_id: suggestionId, direction },
-          {
-            signature: signedAuth.signature,
-            auth: {
-              user_id: authContext.userId,
-              nonce: signedAuth.nonce,
-              timestamp: signedAuth.timestamp,
-              project_id: config.projectId,
+        const res = await fetch(proxyUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "vote",
+            payload: {
+              suggestion_id: suggestionId,
+              direction,
             },
-          },
-        );
-        return result;
+          }),
+        });
+
+        if (!res.ok) {
+          throw new Error((await res.text()) || "Failed to vote");
+        }
+
+        const data = await res.json();
+        return data;
       } catch (err) {
+        // Rollback optimistic update
+        emitSuggestionUpdate(suggestionId, applyDelta(-delta));
+
         const wrapped = err instanceof Error ? err : new Error(String(err));
         setError(wrapped);
         throw wrapped;
       } finally {
-        setIsLoading(false);
+        pendingRef.current.delete(suggestionId);
+        setPendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(suggestionId);
+          return next;
+        });
       }
     },
-    [client, authContext, config.projectId],
+    [proxyUrl, config.projectId, emitSuggestionUpdate],
   );
 
-  return { vote, isLoading, error };
+  const isLoading = pendingIds.size > 0;
+
+  return { vote, isLoading, isVotingOn, error };
 }

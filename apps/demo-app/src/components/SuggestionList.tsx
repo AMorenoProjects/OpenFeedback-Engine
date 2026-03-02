@@ -2,7 +2,6 @@
 
 import { useSuggestions, useVote, type Suggestion } from "@openfeedback/react";
 import { useState } from "react";
-import { signVote } from "@/app/actions";
 
 interface SuggestionListProps {
   userId: string;
@@ -89,8 +88,7 @@ function SuggestionCard({
   async function handleVote(direction: "up" | "remove") {
     try {
       setLastAction(null);
-      const signedAuth = await signVote(userId, suggestion.id, direction);
-      const result = await vote(suggestion.id, direction, signedAuth);
+      const result = await vote(suggestion.id, direction);
       setLastAction(result.action);
 
       // Temporary confirmation message layout

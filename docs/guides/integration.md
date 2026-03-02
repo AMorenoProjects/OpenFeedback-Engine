@@ -35,55 +35,28 @@ NEXT_PUBLIC_OPENFEEDBACK_ANON_KEY="..."
 OPENFEEDBACK_HMAC_SECRET="..."
 ```
 
-## 🔒 3. The Server Side Signer (The "No Login" Magic)
+## 🔒 3. The Server Side Proxy (The "Plug & Play" Auth)
 
 To prove to the Edge Functions that a user clicking "Upvote" in the browser is exactly who they claim to be—without forcing them to log into another portal—we use their existing session token in your App.
 
-Create a proxy file `app/actions/openfeedback.ts`:
+Instead of writing cryptography code by hand, you simply spawn an API route. Create `app/api/openfeedback/route.ts`:
 
 ```typescript
-"use server";
+import { OpenFeedbackProxy } from "@openfeedback/client/next";
+import { getSession } from "@/lib/auth"; // Your app's auth library
 
-import { signRequestBody, generateNonce } from "@openfeedback/client/server";
-
-const hmacSecret = process.env.OPENFEEDBACK_HMAC_SECRET!;
-const projectId = "your-project-id";
-
-// Wrap the Vote Intent
-export async function signVote(
-  userId: string,
-  suggestionId: string,
-  direction: "up" | "remove",
-) {
-  const nonce = generateNonce();
-  const timestamp = Date.now();
-
-  const body = JSON.stringify({
-    auth: { user_id: userId, nonce, timestamp, project_id: projectId },
-    vote: { suggestion_id: suggestionId, direction },
-  });
-
-  const signature = signRequestBody(body, hmacSecret);
-  return { signature, nonce, timestamp };
-}
-
-// Wrap the Submission Intent
-export async function signSuggestion(
-  userId: string,
-  title: string,
-  description?: string,
-) {
-  const nonce = generateNonce();
-  const timestamp = Date.now();
-
-  const body = JSON.stringify({
-    auth: { user_id: userId, nonce, timestamp, project_id: projectId },
-    suggestion: { title, ...(description ? { description } : {}) },
-  });
-
-  const signature = signRequestBody(body, hmacSecret);
-  return { signature, nonce, timestamp };
-}
+export const POST = OpenFeedbackProxy({
+  projectId: process.env.NEXT_PUBLIC_OPENFEEDBACK_PROJECT_ID!,
+  hmacSecret: process.env.OPENFEEDBACK_HMAC_SECRET!,
+  supabaseUrl: process.env.NEXT_PUBLIC_OPENFEEDBACK_URL!,
+  supabaseAnonKey: process.env.NEXT_PUBLIC_OPENFEEDBACK_ANON_KEY!,
+  getUser: async () => {
+    // Only logged-in users get to vote. The SDK will securely sign 
+    // the request using this ID server-side.
+    const session = await getSession();
+    return session?.user?.id || null; 
+  }
+});
 ```
 
 ## ⚛️ 4. The React Provider
@@ -94,25 +67,16 @@ Wrap your application (or just the route where the feedback board will live) wit
 import { OpenFeedbackProvider } from "@openfeedback/react";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  
-  // Example: Grab your user inside the layout (from Supabase Auth, NextAuth, Clerk, etc.)
-  const sessionUser = { id: "user-123" }; 
-
   return (
     <html lang="en">
       <body>
         <OpenFeedbackProvider
           config={{
-            projectId: "your-project-id", // Match the one in your Server Action
-            apiUrl: process.env.NEXT_PUBLIC_OPENFEEDBACK_URL!
+            projectId: "your-project-id", // Match the one in your environment
+            apiUrl: process.env.NEXT_PUBLIC_OPENFEEDBACK_URL!,
+            // proxyUrl: "/api/openfeedback" // Default location
           }}
           anonKey={process.env.NEXT_PUBLIC_OPENFEEDBACK_ANON_KEY!}
-          authContext={{ 
-            userId: sessionUser?.id || "anonymous-viewer", 
-            nonce: "initial", 
-            signature: "initial", 
-            timestamp: 0 
-          }}
         >
           {children}
         </OpenFeedbackProvider>
@@ -124,7 +88,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 ## 🎨 5. Embedding the UI
 
-Drop our ready-made Feedback Board anywhere in your tree. It automatically inherits your Next.js Theme and links into the Provider.
+Drop our ready-made Feedback Board anywhere in your tree. It automatically inherits your Next.js Theme and links into the Provider. 
+
+(The `userId` prop is only used for UI-optimistic rendering of user's own votes; security authorization happens behind the scenes in the Route Handler).
 
 ```tsx
 "use client";
@@ -135,7 +101,7 @@ export default function FeedbackPage() {
     return (
         <div className="max-w-4xl mx-auto p-8">
             <h1 className="text-3xl font-bold mb-8">Roadmap</h1>
-            <FeedbackBoard />
+            <FeedbackBoard userId="current_user_id" />
         </div>
     );
 }

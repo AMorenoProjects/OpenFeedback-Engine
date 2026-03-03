@@ -135,6 +135,12 @@ Replay attacks prevention. Edge Functions register every used nonce.
 
 **RLS:** Enabled without policies = implicit denial for anon and authenticated. Service role automatically bypasses RLS.
 
+**Automatic cleanup:** A `purge_expired_nonces()` function deletes nonces older than 1 hour. If `pg_cron` is available (Supabase paid plans), it runs automatically every hour. On free tier, run it manually:
+
+```sql
+select purge_expired_nonces();
+```
+
 ---
 
 ### `webhooks`
@@ -145,7 +151,7 @@ Allows projects to register webhook URLs for events like suggestion creation or 
 |---|---|---|
 | `id` | `uuid` (PK) | Unique identifier |
 | `project_id` | `uuid` (FK → `projects`) | Associated project |
-| `url` | `text` | Target webhook URL |
+| `url` | `text` | Target webhook URL (must be HTTPS — enforced by CHECK constraint) |
 | `events` | `text[]` | Subscribed events (default: `suggestion.created`, `suggestion.shipped`) |
 | `secret` | `text` | Optional secret to sign webhook payloads |
 | `is_active` | `boolean` | Indicates if the webhook is active |
@@ -194,6 +200,7 @@ The repository contains incremental migrations in `supabase/migrations/`:
 | `20260219_project_members.sql` | project_members table + RLS update for dashboard |
 | `20260221_used_nonces.sql` | used_nonces table for replay prevention |
 | `20260222_add_webhooks_table_and_triggers.sql` | webhooks table + dispatch trigger |
+| `20260303_nonce_cleanup.sql` | Nonce purge function + pg_cron schedule |
 
 The `supabase/00_init.sql` file is the consolidation of all these migrations into a single script, designed for users setting up a Supabase project from scratch. If you already ran the individual migrations, **you don't need to run `00_init.sql`**.
 

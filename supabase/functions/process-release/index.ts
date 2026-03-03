@@ -14,8 +14,21 @@ Deno.serve(async (req: Request) => {
     // @ts-ignore - Deno is available at edge runtime
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!authHeader || authHeader !== `Bearer ${serviceRoleKey}`) {
-        return errorResponse("Unauthorized: Invalid Bearer token", 401);
+    if (!authHeader || !serviceRoleKey) {
+        return errorResponse("Unauthorized", 401);
+    }
+
+    // Constant-time comparison to prevent timing side-channel attacks
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    if (token.length !== serviceRoleKey.length) {
+        return errorResponse("Unauthorized", 401);
+    }
+    let cmpResult = 0;
+    for (let i = 0; i < token.length; i++) {
+        cmpResult |= token.charCodeAt(i) ^ serviceRoleKey.charCodeAt(i);
+    }
+    if (cmpResult !== 0) {
+        return errorResponse("Unauthorized", 401);
     }
 
     let parsed: any;

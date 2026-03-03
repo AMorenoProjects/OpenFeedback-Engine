@@ -312,6 +312,37 @@ alter table used_nonces enable row level security;
 -- No policies needed: RLS enabled with no policies = deny all for anon/authenticated.
 -- Service role (used by Edge Functions) bypasses RLS automatically.
 
+-- Index for efficient cleanup of expired nonces
+create index if not exists idx_used_nonces_created_at
+  on used_nonces(created_at);
+
+-- Cleanup function: purge nonces older than 1 hour
+-- (generous margin over the 5-minute timestamp tolerance)
+create or replace function purge_expired_nonces()
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  delete from used_nonces
+  where created_at < now() - interval '1 hour';
+end;
+$$;
+
+-- Optional: schedule with pg_cron (available on Supabase paid plans).
+-- On free tier, run manually: SELECT purge_expired_nonces();
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.schedule(
+      'purge-expired-nonces',
+      '0 * * * *',
+      $cron$select purge_expired_nonces()$cron$
+    );
+  end if;
+end;
+$$;
+
 
 -- ============================================================================
 -- 7. Webhooks table (event notifications)
@@ -321,7 +352,7 @@ alter table used_nonces enable row level security;
 create table if not exists webhooks (
   id          uuid primary key default gen_random_uuid(),
   project_id  uuid not null references projects(id) on delete cascade,
-  url         text not null,
+  url         text not null check (url ~ '^https://'),
   events      text[] not null default '{suggestion.created, suggestion.shipped}',
   secret      text default null,
   is_active   boolean not null default true,

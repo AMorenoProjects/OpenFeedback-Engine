@@ -63,7 +63,22 @@ export function OpenFeedbackProxy(config: OpenFeedbackProxyConfig) {
             });
 
             if (!res.ok) {
-                return new Response(await res.text(), { status: res.status });
+                // Never forward raw Edge Function error bodies to the client —
+                // they may contain internal details (table names, constraint info).
+                // Parse the generic error message if available, otherwise use a safe default.
+                let clientMessage = "Request failed";
+                try {
+                    const errorBody = await res.json() as { error?: string };
+                    if (typeof errorBody.error === "string") {
+                        clientMessage = errorBody.error;
+                    }
+                } catch {
+                    // Body wasn't JSON — use the safe default
+                }
+                return new Response(
+                    JSON.stringify({ error: clientMessage }),
+                    { status: res.status, headers: { "Content-Type": "application/json" } },
+                );
             }
 
             return new Response(JSON.stringify(await res.json()), {

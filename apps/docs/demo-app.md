@@ -1,72 +1,72 @@
-# Demo App — Validación del Core Engine
+# Demo App — Core Engine Validation
 
-Aplicación Next.js (App Router) que valida el funcionamiento completo de `@openfeedback/react`, `@openfeedback/client` y el backend de Supabase (Edge Functions + PostgreSQL). Sirve como ejemplo de integración de referencia para cualquier app Next.js que quiera embeber OpenFeedback.
+Next.js application (App Router) that validates the complete operation of `@openfeedback/react`, `@openfeedback/client` and the Supabase backend (Edge Functions + PostgreSQL). It serves as a reference integration example for any Next.js app that wants to embed OpenFeedback.
 
 ---
 
-## Inicio rápido
+## Quick Start
 
 ```bash
-# 1. Compilar los paquetes del SDK (Turborepo resuelve el orden)
+# 1. Build SDK packages (Turborepo resolves the order)
 pnpm build
 
-# 2. Configurar variables de entorno
+# 2. Configure environment variables
 cp apps/demo-app/.env.local.example apps/demo-app/.env.local
-# Editar .env.local con tus valores (ver sección "Variables de entorno")
+# Edit .env.local with your values (see "Environment Variables" section)
 
-# 3. Arrancar el servidor de desarrollo
+# 3. Start development server
 pnpm --filter @openfeedback/demo-app dev
 # → http://localhost:3099
 ```
 
 ---
 
-## Variables de entorno
+## Environment Variables
 
-El archivo `.env.local` en `apps/demo-app/` debe contener:
+The `.env.local` file in `apps/demo-app/` must contain:
 
-| Variable | Exposición | Descripción |
+| Variable | Exposure | Description |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Cliente + Servidor | URL base del proyecto Supabase (`https://<ref>.supabase.co`) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Cliente + Servidor | Clave anon (JWT público) para lecturas PostgREST |
-| `NEXT_PUBLIC_OPENFEEDBACK_PROJECT_ID` | Cliente + Servidor | UUID del proyecto en la tabla `projects` |
-| `OPENFEEDBACK_HMAC_SECRET` | **Solo servidor** | Secreto HMAC compartido con el backend. Se usa para firmar cada petición de escritura. **Nunca debe llegar al navegador.** |
+| `NEXT_PUBLIC_SUPABASE_URL` | Client + Server | Base URL of the Supabase project (`https://<ref>.supabase.co`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client + Server | Anon key (public JWT) for PostgREST reads |
+| `NEXT_PUBLIC_OPENFEEDBACK_PROJECT_ID` | Client + Server | UUID of the project in the `projects` table |
+| `OPENFEEDBACK_HMAC_SECRET` | **Server only** | Shared HMAC secret with the backend. Used to sign every write request. **Must never reach the browser.** |
 
-> **Seguridad:** las variables con prefijo `NEXT_PUBLIC_` son visibles en el bundle del cliente. `OPENFEEDBACK_HMAC_SECRET` no lleva ese prefijo y por tanto solo existe en el entorno del servidor (Server Actions, API routes).
+> **Security:** variables with the `NEXT_PUBLIC_` prefix are visible in the client bundle. `OPENFEEDBACK_HMAC_SECRET` does not have that prefix and therefore only exists in the server environment (Server Actions, API routes).
 
 ---
 
-## Estructura de archivos
+## File Structure
 
 ```
 apps/demo-app/
-├── .env.local                  # Variables de entorno (no commiteado)
-├── package.json                # Next.js 15 + dependencias workspace
-├── tsconfig.json               # Extiende @openfeedback/typescript-config/nextjs
-├── next.config.ts              # transpilePackages para los paquetes del SDK
-├── tailwind.config.ts          # Importa el preset de @openfeedback/tailwind-config
+├── .env.local                  # Environment variables (not committed)
+├── package.json                # Next.js 15 + workspace dependencies
+├── tsconfig.json               # Extends @openfeedback/typescript-config/nextjs
+├── next.config.ts              # transpilePackages for SDK packages
+├── tailwind.config.ts          # Imports @openfeedback/tailwind-config preset
 ├── postcss.config.mjs
 └── src/
     ├── app/
-    │   ├── globals.css         # Directivas de Tailwind
-    │   ├── layout.tsx          # Layout raíz (metadata, body con clases of-neutral)
-    │   ├── page.tsx            # Server Component: monta FeedbackBoard con config
+    │   ├── globals.css         # Tailwind directives
+    │   ├── layout.tsx          # Root layout (metadata, body with of-neutral classes)
+    │   ├── page.tsx            # Server Component: mounts FeedbackBoard with config
     │   └── actions.ts          # Server Actions: signVote, signSuggestion
     └── components/
         ├── FeedbackBoard.tsx   # Client Component: <OpenFeedbackProvider> wrapper
-        ├── SuggestionList.tsx  # useSuggestions (lectura) + useVote (escritura)
-        └── NewSuggestionForm.tsx # useSubmitSuggestion (creación de sugerencias)
+        ├── SuggestionList.tsx  # useSuggestions (read) + useVote (write)
+        └── NewSuggestionForm.tsx # useSubmitSuggestion (suggestion creation)
 ```
 
 ---
 
-## Arquitectura de la integración
+## Integration Architecture
 
-### Diagrama de flujo
+### Flow Diagram
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│  Navegador (Client Components)                                │
+│  Browser (Client Components)                                  │
 │                                                               │
 │  ┌─────────────────────────────────────────────────────────┐  │
 │  │  <OpenFeedbackProvider>                                 │  │
@@ -76,105 +76,105 @@ apps/demo-app/
 │  │                                                         │  │
 │  │  ┌──────────────────┐  ┌───────────────────────────┐   │  │
 │  │  │  useSuggestions   │  │  useVote / useSubmitSug.  │   │  │
-│  │  │  (lectura pública)│  │  (escritura firmada)      │   │  │
+│  │  │  (public read)    │  │  (signed write)           │   │  │
 │  │  └────────┬─────────┘  └────────────┬──────────────┘   │  │
 │  └───────────┼─────────────────────────┼───────────────────┘  │
 │              │                         │                      │
-│              │ GET /rest/v1/suggestions │ 1. Llama Server      │
-│              │ (anon key)              │    Action para firmar │
+│              │ GET /rest/v1/suggestions │ 1. Call Server       │
+│              │ (anon key)              │    Action to sign     │
 │              │                         │ 2. POST /functions/v1 │
-│              │                         │    con signature      │
+│              │                         │    with signature     │
 └──────────────┼─────────────────────────┼──────────────────────┘
                │                         │
                ▼                         ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  Servidor Next.js (Server Actions)                           │
+│  Next.js Server (Server Actions)                             │
 │                                                              │
 │  signVote(userId, suggestionId, direction)                   │
 │  signSuggestion(userId, title, description?)                 │
-│    1. Genera nonce + timestamp frescos                       │
-│    2. Construye el JSON body completo (auth + payload)       │
+│    1. Generates fresh nonce + timestamp                      │
+│    2. Builds the complete JSON body (auth + payload)         │
 │    3. HMAC-SHA256(body, OPENFEEDBACK_HMAC_SECRET)            │
-│    4. Devuelve { signature, nonce, timestamp }               │
+│    4. Returns { signature, nonce, timestamp }                │
 └──────────────────────────────────────────────────────────────┘
                │                         │
                ▼                         ▼
 ┌──────────────────────────────────────────────────────────────┐
 │  Supabase                                                    │
 │                                                              │
-│  PostgREST ← lecturas (anon key, RLS: SELECT público)       │
-│  Edge Functions ← escrituras (service role, bypass RLS)      │
-│    submit-vote:       verifica firma → INSERT/DELETE votes    │
-│    submit-suggestion: verifica firma → INSERT suggestions     │
-│  Trigger: update_suggestion_upvotes() mantiene el contador   │
+│  PostgREST ← reads (anon key, RLS: public SELECT)           │
+│  Edge Functions ← writes (service role, bypass RLS)          │
+│    submit-vote:       verifies signature → INSERT/DELETE votes │
+│    submit-suggestion: verifies signature → INSERT suggestions  │
+│  Trigger: update_suggestion_upvotes() maintains the counter  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### Flujo de un voto (paso a paso)
+### Vote Flow (step by step)
 
-1. El usuario hace click en "▲" en una suggestion.
-2. `SuggestionList.tsx` llama a la Server Action `signVote(userId, suggestionId, "up")`.
-3. La Server Action (en el servidor Next.js):
-   - Genera un `nonce` criptográficamente aleatorio (16 bytes hex).
-   - Captura el `timestamp` actual (`Date.now()`).
-   - Construye el JSON body exacto: `{ auth: { user_id, nonce, timestamp, project_id }, vote: { suggestion_id, direction } }`.
-   - Firma el body con `HMAC-SHA256(body, hmacSecret)` usando `signRequestBody` de `@openfeedback/client/server`.
-   - Devuelve `{ signature, nonce, timestamp }` al cliente.
-4. El componente llama a `vote(suggestionId, "up", { signature, nonce, timestamp })` del hook `useVote`.
-5. El hook usa `OpenFeedbackClient.submitVote()` que:
-   - Reconstruye el body con los mismos valores de auth (userId del context + nonce/timestamp recibidos).
-   - Envía `POST /functions/v1/submit-vote` con el body en el cuerpo y la firma en el header `x-openfeedback-signature`.
-6. La Edge Function `submit-vote`:
-   - Valida el body (estructura, tipos, UUIDs).
-   - Verifica la frescura del timestamp (< 5 minutos de drift).
-   - Busca el `hmac_secret` del proyecto en la tabla `projects`.
-   - Recomputa `HMAC-SHA256(rawBody, hmac_secret)` y compara con la firma (constant-time).
-   - Verifica que el nonce no haya sido usado (anti-replay).
-   - Computa `user_hash = HMAC(user_id, project_secret)` (nunca almacena el user_id real).
-   - Inserta en `votes` o retorna 409 si ya votó.
-7. El trigger `update_suggestion_upvotes()` incrementa `suggestions.upvotes` automáticamente.
-8. El componente llama a `refetch()` de `useSuggestions` para actualizar la lista.
+1. The user clicks on "▲" in a suggestion.
+2. `SuggestionList.tsx` calls the Server Action `signVote(userId, suggestionId, "up")`.
+3. The Server Action (in the Next.js server):
+   - Generates a cryptographically random `nonce` (16 hex bytes).
+   - Captures the current `timestamp` (`Date.now()`).
+   - Builds the exact JSON body: `{ auth: { user_id, nonce, timestamp, project_id }, vote: { suggestion_id, direction } }`.
+   - Signs the body with `HMAC-SHA256(body, hmacSecret)` using `signRequestBody` from `@openfeedback/client/server`.
+   - Returns `{ signature, nonce, timestamp }` to the client.
+4. The component calls `vote(suggestionId, "up", { signature, nonce, timestamp })` from the `useVote` hook.
+5. The hook uses `OpenFeedbackClient.submitVote()` which:
+   - Reconstructs the body with the same auth values (userId from context + received nonce/timestamp).
+   - Sends `POST /functions/v1/submit-vote` with the body in the payload and the signature in the `x-openfeedback-signature` header.
+6. The `submit-vote` Edge Function:
+   - Validates the body (structure, types, UUIDs).
+   - Verifies the timestamp freshness (< 5 minutes drift).
+   - Fetches the project's `hmac_secret` from the `projects` table.
+   - Recomputes `HMAC-SHA256(rawBody, hmac_secret)` and compares it with the signature (constant-time).
+   - Verifies that the nonce hasn't been used (anti-replay).
+   - Computes `user_hash = HMAC(user_id, project_secret)` (never stores the real user_id).
+   - Inserts into `votes` or returns 409 if already voted.
+7. The `update_suggestion_upvotes()` trigger automatically increments `suggestions.upvotes`.
+8. The component calls `refetch()` from `useSuggestions` to update the list.
 
 ---
 
-## Componentes en detalle
+## Components in detail
 
 ### `page.tsx` — Server Component
 
 ```tsx
-// Lee config del entorno (server-side)
+// Read environment config (server-side)
 const config = {
   projectId: process.env.NEXT_PUBLIC_OPENFEEDBACK_PROJECT_ID!,
   apiUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
 };
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// Renderiza el FeedbackBoard (client component)
+// Render FeedbackBoard (client component)
 <FeedbackBoard config={config} anonKey={anonKey} userId={DEMO_USER_ID} />
 ```
 
-El `userId` está hardcodeado como `"demo-user-001"` para la demo. En una app real, vendría de tu sistema de autenticación (e.g., `session.user.id`).
+The `userId` is hardcoded as `"demo-user-001"` for the demo. In a real app, it would come from your authentication system (e.g., `session.user.id`).
 
 ### `FeedbackBoard.tsx` — Provider wrapper
 
-Monta `<OpenFeedbackProvider>` con:
+Mounts `<OpenFeedbackProvider>` with:
 - `config`: projectId + apiUrl.
-- `anonKey`: para lecturas PostgREST públicas.
-- `authContext`: solo lleva `userId`. Los campos `signature`, `nonce` y `timestamp` se generan frescos por cada operación via Server Actions (ver sección "Bug corregido").
+- `anonKey`: for public PostgREST reads.
+- `authContext`: only carries `userId`. `signature`, `nonce` and `timestamp` fields are generated freshly for each operation via Server Actions (see "Fixed Bug" section).
 
-### `SuggestionList.tsx` — Lectura + Votación
+### `SuggestionList.tsx` — Read + Voting
 
-Usa dos hooks:
-- `useSuggestions({ orderBy: "upvotes" })` — Fetch automático al montar. Devuelve `{ suggestions, isLoading, error, refetch }`.
-- `useVote()` — Devuelve `{ vote, isLoading, error }`. Cada llamada a `vote()` recibe auth firmado fresco.
+Uses two hooks:
+- `useSuggestions({ orderBy: "upvotes" })` — Automatic fetch on mount. Returns `{ suggestions, isLoading, error, refetch }`.
+- `useVote()` — Returns `{ vote, isLoading, error }`. Each call to `vote()` receives freshly signed auth.
 
-### `NewSuggestionForm.tsx` — Creación de sugerencias
+### `NewSuggestionForm.tsx` — Suggestion creation
 
-Formulario controlado con `title` y `description`. Usa `useSubmitSuggestion()` que devuelve `{ submit, isLoading, error }`. El flujo es idéntico al de votación: llama a la Server Action para firmar, luego al hook para enviar.
+Controlled form with `title` and `description`. Uses `useSubmitSuggestion()` which returns `{ submit, isLoading, error }`. The flow is identical to voting: calls Server Action to sign, then the hook to send.
 
 ### `actions.ts` — Server Actions
 
-Dos funciones exportadas como `"use server"`:
+Two exported `"use server"` functions:
 
 ```typescript
 signVote(userId, suggestionId, direction)
@@ -184,45 +184,45 @@ signSuggestion(userId, title, description?)
   → { signature, nonce, timestamp }
 ```
 
-Ambas:
-1. Generan `nonce` con `generateNonce()` de `@openfeedback/client/server`.
-2. Construyen el body JSON exacto que la Edge Function espera.
-3. Firman con `signRequestBody(body, hmacSecret)`.
-4. Devuelven solo los parámetros necesarios (el secreto nunca sale del servidor).
+Both:
+1. Generate `nonce` with `generateNonce()` from `@openfeedback/client/server`.
+2. Build the exact JSON body that the Edge Function expects.
+3. Sign with `signRequestBody(body, hmacSecret)`.
+4. Return only the necessary parameters (the secret never leaves the server).
 
 ---
 
-## Bug corregido en el SDK: nonce por llamada
+## Fixed SDK Bug: per-call nonce
 
-### Problema
+### Problem
 
-Los hooks `useVote` y `useSubmitSuggestion` originalmente tomaban `nonce` y `timestamp` del `authContext` del provider, que se fija al montar el componente. Esto significaba que:
+The `useVote` and `useSubmitSuggestion` hooks originally took `nonce` and `timestamp` from the provider's `authContext` which is set on mount. This meant that:
 
-- La primera operación funcionaba correctamente.
-- La segunda operación con el mismo `authContext` era rechazada por la Edge Function como **replay** (nonce ya usado).
+- The first operation worked correctly.
+- The second operation with the same `authContext` was rejected by the Edge Function as **replay** (already used nonce).
 
-En la práctica, solo se podía realizar una única operación de escritura por sesión.
+In practice, only one single write operation could be made per session.
 
-### Solución
+### Solution
 
-Se modificó la firma de los hooks para aceptar un objeto `SignedAuthParams` fresco por cada llamada:
+The hook signatures were modified to accept a fresh `SignedAuthParams` object for each call:
 
 ```typescript
-// Antes (roto para múltiples operaciones):
+// Before (broken for multiple operations):
 vote(suggestionId, direction, signature)
-// El hook leía nonce/timestamp del provider context (fijos)
+// The hook read nonce/timestamp from the provider context (fixed)
 
-// Después (correcto):
+// After (correct):
 vote(suggestionId, direction, { signature, nonce, timestamp })
-// Cada llamada recibe auth fresco de la Server Action
+// Each call receives fresh auth from the Server Action
 ```
 
-**Archivos modificados:**
-- `packages/react/src/hooks/useVote.ts` — Nuevo parámetro `signedAuth: SignedAuthParams`.
-- `packages/react/src/hooks/useSubmitSuggestion.ts` — Mismo cambio.
-- `packages/react/src/index.ts` — Exporta el tipo `SignedAuthParams`.
+**Modified files:**
+- `packages/react/src/hooks/useVote.ts` — New parameter `signedAuth: SignedAuthParams`.
+- `packages/react/src/hooks/useSubmitSuggestion.ts` — Same change.
+- `packages/react/src/index.ts` — Exports `SignedAuthParams` type.
 
-**Nuevo tipo exportado:**
+**New exported type:**
 
 ```typescript
 interface SignedAuthParams {
@@ -232,67 +232,67 @@ interface SignedAuthParams {
 }
 ```
 
-El `authContext` del provider sigue siendo necesario para aportar el `userId`, pero ya no es responsable del nonce ni del timestamp por operación.
+The provider's `authContext` is still necessary to provide the `userId`, but it is no longer responsible for the per-operation nonce or timestamp.
 
 ---
 
-## Backend: qué se desplegó en Supabase
+## Backend: what was deployed in Supabase
 
-### Schema (4 tablas)
+### Schema (4 tables)
 
-La migración `supabase/migrations/20260217_init.sql` crea:
+The `supabase/migrations/20260217_init.sql` migration creates:
 
-| Tabla | Acceso anon/authenticated | Propósito |
+| Table | Anon/authenticated access | Purpose |
 |---|---|---|
-| `projects` | Denegado (solo service role) | Registro de tenants + `hmac_secret` |
-| `suggestions` | SELECT público, no writes | Tablero de feedback |
-| `votes` | SELECT público, no writes | Ledger de votos (almacena `user_hash`, no `user_id`) |
-| `pseudonymous_vault` | Denegado (solo service role) | PII cifrada para notificaciones GDPR-compliant |
+| `projects` | Denied (service role only) | Tenant registry + `hmac_secret` |
+| `suggestions` | Public SELECT, no writes | Feedback board |
+| `votes` | Public SELECT, no writes | Votes ledger (stores `user_hash`, not `user_id`) |
+| `pseudonymous_vault` | Denied (service role only) | Encrypted PII for GDPR-compliant notifications |
 
 ### Edge Functions (2)
 
-| Función | Ruta | Acción |
+| Function | Route | Action |
 |---|---|---|
-| `submit-vote` | `POST /functions/v1/submit-vote` | Insertar o eliminar voto |
-| `submit-suggestion` | `POST /functions/v1/submit-suggestion` | Crear sugerencia + opcional vault entry |
+| `submit-vote` | `POST /functions/v1/submit-vote` | Insert or remove vote |
+| `submit-suggestion` | `POST /functions/v1/submit-suggestion` | Create suggestion + optional vault entry |
 
-Ambas siguen el mismo pipeline de autenticación:
+Both follow the same authentication pipeline:
 
 ```
-Validar body → Verificar timestamp → Buscar hmac_secret → Verificar firma HMAC → Check nonce → Ejecutar operación
+Validate body → Verify timestamp → Fetch hmac_secret → Verify HMAC signature → Check nonce → Execute operation
 ```
 
-### Trigger automático
+### Automatic Trigger
 
-`update_suggestion_upvotes()` se ejecuta `AFTER INSERT` y `AFTER DELETE` en `votes`, manteniendo `suggestions.upvotes` sincronizado sin lógica adicional en la Edge Function.
+`update_suggestion_upvotes()` runs `AFTER INSERT` and `AFTER DELETE` on `votes`, keeping `suggestions.upvotes` in sync without extra logic in the Edge Function.
 
 ---
 
-## Validación E2E realizada
+## Performed E2E Validation
 
-| Escenario | Método | Resultado esperado | Resultado obtenido |
+| Scenario | Method | Expected result | Actual result |
 |---|---|---|---|
-| Lectura de suggestions (anon key) | `GET /rest/v1/suggestions` | 200 + array de suggestions | 200 + 3 suggestions |
-| Voto firmado | `POST /functions/v1/submit-vote` | 201 `{ ok: true, action: "voted" }` | 201 OK |
-| Trigger de upvotes | SELECT tras voto | `upvotes` incrementado | `upvotes: 0 → 1` |
-| Voto duplicado (mismo user + suggestion) | `POST /functions/v1/submit-vote` | 409 "Already voted" | 409 OK |
-| Creación de suggestion firmada | `POST /functions/v1/submit-suggestion` | 201 + suggestion completa | 201 OK |
-| Build de Next.js | `pnpm build` | Sin errores | Compilación exitosa |
+| Read suggestions (anon key) | `GET /rest/v1/suggestions` | 200 + suggestions array | 200 + 3 suggestions |
+| Signed vote | `POST /functions/v1/submit-vote` | 201 `{ ok: true, action: "voted" }` | 201 OK |
+| Upvotes trigger | SELECT after vote | `upvotes` incremented | `upvotes: 0 → 1` |
+| Duplicate vote (same user + suggestion) | `POST /functions/v1/submit-vote` | 409 "Already voted" | 409 OK |
+| Signed suggestion creation | `POST /functions/v1/submit-suggestion` | 201 + complete suggestion | 201 OK |
+| Next.js Build | `pnpm build` | Without errors | Successful build |
 | Dev server | `pnpm dev` | HTTP 200 | 200 OK |
 
 ---
 
-## Patrón de integración para tu app
+## Integration pattern for your app
 
-Para integrar OpenFeedback en una app Next.js real, replica este patrón:
+To integrate OpenFeedback in a real Next.js app, replicate this pattern:
 
-### 1. Instalar dependencias
+### 1. Install dependencies
 
 ```bash
 pnpm add @openfeedback/react @openfeedback/client
 ```
 
-### 2. Crear Server Actions para firmar
+### 2. Create Server Actions for signing
 
 ```typescript
 // app/actions.ts
@@ -313,10 +313,10 @@ export async function signVote(userId: string, suggestionId: string, direction: 
 }
 ```
 
-### 3. Montar el Provider
+### 3. Mount the Provider
 
 ```tsx
-// En un Client Component
+// In a Client Component
 import { OpenFeedbackProvider } from "@openfeedback/react";
 
 <OpenFeedbackProvider
@@ -328,38 +328,38 @@ import { OpenFeedbackProvider } from "@openfeedback/react";
 </OpenFeedbackProvider>
 ```
 
-### 4. Usar los hooks
+### 4. Use the hooks
 
 ```tsx
-// Lectura (sin auth)
+// Read (without auth)
 const { suggestions, isLoading, refetch } = useSuggestions({ orderBy: "upvotes" });
 
-// Escritura (con Server Action para firmar)
+// Write (with Server Action to sign)
 const { vote } = useVote();
 const signedAuth = await signVote(userId, suggestionId, "up");
 await vote(suggestionId, "up", signedAuth);
 ```
 
-### Punto clave: la firma siempre en el servidor
+### Key point: the signature is always on the server
 
-El `hmacSecret` **nunca** debe llegar al cliente. El patrón es:
+The `hmacSecret` must **never** reach the client. The pattern is:
 
-1. El cliente decide qué acción tomar (e.g., votar por X).
-2. Llama a una Server Action pasando los parámetros de la acción.
-3. La Server Action construye el body completo, lo firma, y devuelve `{ signature, nonce, timestamp }`.
-4. El cliente pasa esos valores al hook, que envía la petición firmada a la Edge Function.
+1. The client decides what action to take (e.g., vote for X).
+2. It calls a Server Action passing the action parameters.
+3. The Server Action builds the complete body, signs it, and returns `{ signature, nonce, timestamp }`.
+4. The client passes those values to the hook, which sends the signed request to the Edge Function.
 
 ---
 
-## Comandos útiles
+## Useful commands
 
 ```bash
-# Desarrollo
-pnpm --filter @openfeedback/demo-app dev     # Dev server en :3099
+# Development
+pnpm --filter @openfeedback/demo-app dev     # Dev server on :3099
 
 # Build
-pnpm build                                    # Build completo del monorepo
-pnpm --filter @openfeedback/demo-app build    # Build solo la demo
+pnpm build                                    # Full monorepo build
+pnpm --filter @openfeedback/demo-app build    # Build demo only
 
 # Type check
 pnpm --filter @openfeedback/demo-app type-check

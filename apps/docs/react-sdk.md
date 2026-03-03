@@ -1,14 +1,14 @@
-# @openfeedback/react — SDK de React
+# @openfeedback/react — React SDK
 
-Paquete principal del SDK de frontend. Exporta componentes headless (estilo Shadcn), hooks y utilidades para embeber feedback en cualquier aplicación React/Next.js.
+Main package of the frontend SDK. Exports headless components (Shadcn style), hooks and utilities to embed feedback inside any React/Next.js application.
 
 ---
 
-## Componentes
+## Components
 
 ### `SuggestionSearch`
 
-Componente headless de búsqueda reactiva. Muestra un input con dropdown que filtra las sugerencias existentes con debounce client-side. Cuando no hay coincidencias, indica que se creará una nueva idea.
+Reactive headless search component. Displays an input with a dropdown that filters existing suggestions with client-side debounce. When there are no matches, it indicates that a new idea will be created.
 
 ```tsx
 import { SuggestionSearch } from "@openfeedback/react";
@@ -17,7 +17,7 @@ import { SuggestionSearch } from "@openfeedback/react";
   value={title}
   onChange={setTitle}
   onSelect={(suggestion) => {
-    // El usuario seleccionó una sugerencia existente
+    // The user selected an existing suggestion
     scrollToSuggestion(suggestion.id);
   }}
   placeholder="What should we build next?"
@@ -31,25 +31,25 @@ import { SuggestionSearch } from "@openfeedback/react";
 
 **Props:**
 
-| Prop | Tipo | Default | Descripción |
+| Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `value` | `string` | — | Valor controlado del input |
-| `onChange` | `(value: string) => void` | — | Callback cuando el texto cambia |
-| `onSelect` | `(suggestion: Suggestion) => void` | — | Callback cuando se selecciona una sugerencia existente |
-| `placeholder` | `string` | `"Search or create a suggestion..."` | Placeholder del input |
-| `className` | `string` | — | Clase del contenedor raíz (se fusiona con `cn()`) |
-| `inputClassName` | `string` | — | Clase del `<input>` |
-| `dropdownClassName` | `string` | — | Clase del dropdown de resultados |
-| `itemClassName` | `string` | — | Clase de cada item del dropdown |
-| `debounceMs` | `number` | `250` | Milisegundos de debounce antes de filtrar |
+| `value` | `string` | — | Controlled input value |
+| `onChange` | `(value: string) => void` | — | Callback when the text changes |
+| `onSelect` | `(suggestion: Suggestion) => void` | — | Callback when an existing suggestion is selected |
+| `placeholder` | `string` | `"Search or create a suggestion..."` | Input placeholder |
+| `className` | `string` | — | Root container class (merged with `cn()`) |
+| `inputClassName` | `string` | — | `<input>` class |
+| `dropdownClassName` | `string` | — | Results dropdown class |
+| `itemClassName` | `string` | — | Class for each dropdown item |
+| `debounceMs` | `number` | `250` | Debounce milliseconds before filtering |
 
-**Arquitectura Shadcn:** el componente no impone estilos propios. Todas las clases se pasan via props y se fusionan con `cn()` (clsx + tailwind-merge), permitiendo overrides completos desde la app host.
+**Shadcn Architecture:** the component does not impose its own styles. All classes are passed via props and merged with `cn()` (clsx + tailwind-merge), allowing full overrides from the host app.
 
 ---
 
 ### `TrustBadge`
 
-Componente headless de micro-copy de confianza. Muestra un icono de candado junto al email enmascarado del usuario para transmitir seguridad y privacidad.
+Headless trust micro-copy component. Shows a padlock icon next to the user's masked email to convey security and privacy.
 
 ```tsx
 import { TrustBadge } from "@openfeedback/react";
@@ -58,17 +58,17 @@ import { TrustBadge } from "@openfeedback/react";
   userEmail="jandro@gmail.com"
   className="font-mono text-zinc-500"
 />
-// Renderiza: 🔒 Sending as j***o@gmail.com securely
+// Renders: 🔒 Sending as j***o@gmail.com securely
 ```
 
 **Props:**
 
-| Prop | Tipo | Default | Descripción |
+| Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `userEmail` | `string \| undefined` | — | Email del usuario. Si no se proporciona, el componente no renderiza nada |
-| `className` | `string` | — | Clase del contenedor (se fusiona con `cn()`) |
+| `userEmail` | `string \| undefined` | — | User email. If not provided, the component renders nothing |
+| `className` | `string` | — | Container class (merged with `cn()`) |
 
-El email se enmascara automáticamente con `maskEmail()` para no exponer la dirección completa en el DOM.
+The email is automatically masked with `maskEmail()` so the full address is not exposed in the DOM.
 
 ---
 
@@ -76,7 +76,7 @@ El email se enmascara automáticamente con `maskEmail()` para no exponer la dire
 
 ### `useSearchSuggestions`
 
-Hook que filtra sugerencias client-side con debounce. Usa `useSuggestions()` internamente (datos ya cacheados por el provider), sin necesidad de endpoint adicional.
+Hook that filters suggestions client-side with debounce. Uses `useSuggestions()` internally (data already cached by the provider), without the need for an additional endpoint.
 
 ```tsx
 import { useSearchSuggestions } from "@openfeedback/react";
@@ -87,29 +87,29 @@ const { results, isSearching } = useSearchSuggestions({
 });
 ```
 
-**Opciones:**
+**Options:**
 
-| Opción | Tipo | Default | Descripción |
+| Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `query` | `string` | — | Texto de búsqueda |
-| `debounceMs` | `number` | `250` | Milisegundos de debounce |
+| `query` | `string` | — | Search text |
+| `debounceMs` | `number` | `250` | Debounce milliseconds |
 
-**Retorno:**
+**Return:**
 
-| Campo | Tipo | Descripción |
+| Field | Type | Description |
 |-------|------|-------------|
-| `results` | `Suggestion[]` | Sugerencias cuyo título contiene el query (case-insensitive) |
-| `isSearching` | `boolean` | `true` mientras el debounce está pendiente o los datos están cargando |
+| `results` | `Suggestion[]` | Suggestions whose title contains the query (case-insensitive) |
+| `isSearching` | `boolean` | `true` while the debounce is pending or the data is loading |
 
-**Nota:** la búsqueda es por `String.includes()` sobre el campo `title`. No requiere índice full-text ni endpoint adicional.
+**Note:** the search uses `String.includes()` over the `title` field. It does not require a full-text index or an additional endpoint.
 
 ---
 
-## Utilidades
+## Utilities
 
 ### `maskEmail`
 
-Enmascara un email para mostrar en UI sin exponer la dirección completa.
+Masks an email for UI display without exposing the full address.
 
 ```ts
 import { maskEmail } from "@openfeedback/react";
@@ -119,31 +119,31 @@ maskEmail("ab@example.com");     // "a***b@example.com"
 maskEmail("x@test.com");         // "x***@test.com"
 ```
 
-**Reglas:**
-- Si el local part tiene 3+ caracteres: se muestra el primero, `***`, y el último.
-- Si el local part tiene 1-2 caracteres: se muestra el primero y `***`.
-- El dominio nunca se enmascara.
+**Rules:**
+- If the local part has 3+ characters: the first character, `***`, and the last character are shown.
+- If the local part has 1-2 characters: the first character and `***` are shown.
+- The domain is never masked.
 
 ### `cn`
 
-Utilidad de fusión de clases CSS (clsx + tailwind-merge). Permite componer clases de Tailwind sin conflictos de especificidad.
+CSS classes merge utility (clsx + tailwind-merge). Allows composing Tailwind classes without specificity conflicts.
 
 ```ts
 import { cn } from "@openfeedback/react";
 
 cn("px-4 py-2", condition && "bg-blue-500", "px-6");
-// → "py-2 px-6 bg-blue-500" (px-4 se resuelve a favor de px-6)
+// → "py-2 px-6 bg-blue-500" (px-4 resolves in favor of px-6)
 ```
 
 ---
 
-## Integración en demo-app
+## Integration in demo-app
 
-La demo-app (`apps/demo-app`) ilustra la integración completa de los nuevos componentes.
+The demo-app (`apps/demo-app`) illustrates the complete integration of the new components.
 
 ### `NewSuggestionForm`
 
-El formulario de creación de sugerencias integra `SuggestionSearch` y `TrustBadge`:
+The suggestion creation form integrates `SuggestionSearch` and `TrustBadge`:
 
 ```tsx
 <NewSuggestionForm
@@ -151,28 +151,28 @@ El formulario de creación de sugerencias integra `SuggestionSearch` y `TrustBad
   userEmail="user@example.com"
   onCreated={() => refetch()}
   onExistingSelected={(suggestion) => {
-    // Scroll hasta la sugerencia existente en la lista
+    // Scroll to the existing suggestion in the list
   }}
 />
 ```
 
-**Props añadidas:**
+**Added Props:**
 
-| Prop | Tipo | Descripción |
+| Prop | Type | Description |
 |------|------|-------------|
-| `userEmail` | `string \| undefined` | Se pasa al `TrustBadge` para mostrar el micro-copy de confianza |
-| `onExistingSelected` | `(suggestion: Suggestion) => void` | Se dispara cuando el usuario selecciona una sugerencia existente del dropdown en lugar de crear una nueva |
-| `className` | `string` | Permite overrides de estilo en el form (via `cn()`) |
+| `userEmail` | `string \| undefined` | Passed to the `TrustBadge` to display the trust micro-copy |
+| `onExistingSelected` | `(suggestion: Suggestion) => void` | Fires when the user selects an existing suggestion from the dropdown instead of creating a new one |
+| `className` | `string` | Allows style overrides in the form (via `cn()`) |
 
-**Comportamiento:**
-1. Al escribir en el campo de título, `SuggestionSearch` muestra sugerencias existentes con debounce.
-2. Si el usuario selecciona una existente, se llama `onExistingSelected` y se limpia el input.
-3. Si no hay coincidencias, el dropdown indica "nueva idea" y el usuario puede enviar el formulario normalmente.
-4. Debajo del botón de submit, `TrustBadge` muestra el email enmascarado si se proporcionó.
+**Behavior:**
+1. While typing in the title field, `SuggestionSearch` shows existing suggestions with debounce.
+2. If the user selects an existing one, `onExistingSelected` is called and the input is cleared.
+3. If there are no matches, the dropdown indicates "new idea" and the user can submit the form normally.
+4. Below the submit button, `TrustBadge` shows the masked email if provided.
 
 ### `FeedbackBoard`
 
-El board ahora acepta `userEmail` y maneja el scroll a sugerencias existentes:
+The board now accepts `userEmail` and handles scrolling to existing suggestions:
 
 ```tsx
 <FeedbackBoard
@@ -183,14 +183,14 @@ El board ahora acepta `userEmail` y maneja el scroll a sugerencias existentes:
 />
 ```
 
-Cuando el usuario selecciona una sugerencia existente desde el search, el board hace scroll hasta el card correspondiente usando `data-suggestion-id` como selector.
+When the user selects an existing suggestion from the search, the board scrolls to the corresponding card using `data-suggestion-id` as a selector.
 
 ---
 
-## Exports completos del paquete
+## Full Package Exports
 
 ```ts
-// Componentes
+// Components
 export { OpenFeedbackProvider, useOpenFeedback } from "./components/OpenFeedbackProvider";
 export { SuggestionSearch } from "./components/SuggestionSearch";
 export { TrustBadge } from "./components/TrustBadge";

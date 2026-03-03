@@ -1,238 +1,238 @@
-# Base de datos — Setup con Supabase
+# Database — Supabase Setup
 
-Guía para inicializar la base de datos de OpenFeedback Engine en un proyecto Supabase. Cubre el esquema completo, las políticas de seguridad RLS y el starter SQL listo para copiar y pegar.
-
----
-
-## Inicio rápido (1 minuto)
-
-1. Abre tu proyecto en [Supabase Dashboard](https://supabase.com/dashboard).
-2. Ve a **SQL Editor** (barra lateral izquierda).
-3. Copia el contenido de `supabase/00_init.sql` y pégalo en el editor.
-4. Pulsa **Run**.
-
-Eso es todo. Las 7 tablas, los índices, las políticas RLS y el trigger de upvotes se crean en una sola ejecución.
-
-> **Nota:** el script usa `CREATE TABLE IF NOT EXISTS`, por lo que es seguro ejecutarlo múltiples veces sin duplicar tablas.
+Guide to initializing the OpenFeedback Engine database in a Supabase project. Covers the complete schema, RLS security policies, and the copy-and-paste ready SQL starter.
 
 ---
 
-## Esquema de tablas
+## Quick Start (1 minute)
+
+1. Open your project in the [Supabase Dashboard](https://supabase.com/dashboard).
+2. Go to **SQL Editor** (left sidebar).
+3. Copy the contents of `supabase/00_init.sql` and paste it into the editor.
+4. Click **Run**.
+
+That's it. The 7 tables, indexes, RLS policies, and the upvotes trigger are created in a single execution.
+
+> **Note:** the script uses `CREATE TABLE IF NOT EXISTS`, so it's safe to run it multiple times without duplicating tables.
+
+---
+
+## Table Schema
 
 ### `projects`
 
-Registro de tenants. Cada aplicación host se registra como un proyecto.
+Tenants registry. Each host application is registered as a project.
 
-| Columna | Tipo | Descripción |
+| Column | Type | Description |
 |---|---|---|
-| `id` | `uuid` (PK) | Identificador único, generado automáticamente |
-| `name` | `text` | Nombre del proyecto |
-| `hmac_secret` | `text` | Secreto compartido para verificar firmas HMAC-SHA256. **Nunca debe llegar al navegador.** |
-| `created_at` | `timestamptz` | Fecha de creación |
-| `updated_at` | `timestamptz` | Fecha de última modificación |
+| `id` | `uuid` (PK) | Unique identifier, auto-generated |
+| `name` | `text` | Project name |
+| `hmac_secret` | `text` | Shared secret to verify HMAC-SHA256 signatures. **Must never reach the browser.** |
+| `created_at` | `timestamptz` | Creation date |
+| `updated_at` | `timestamptz` | Last modification date |
 
-**RLS:** Anon denegado. Authenticated solo puede leer proyectos de los que es miembro (vía `project_members`). Escritura restringida al service role.
+**RLS:** Anon denied. Authenticated can only read projects they are members of (via `project_members`). Write operations restricted to service role.
 
 ---
 
 ### `project_members`
 
-Vincula usuarios de Supabase Auth con los proyectos que pueden gestionar desde el dashboard.
+Links Supabase Auth users with the projects they can manage from the dashboard.
 
-| Columna | Tipo | Descripción |
+| Column | Type | Description |
 |---|---|---|
-| `id` | `uuid` (PK) | Identificador único |
-| `project_id` | `uuid` (FK → `projects`) | Proyecto al que pertenece |
-| `user_id` | `uuid` (FK → `auth.users`) | Usuario de Supabase Auth |
-| `role` | `text` | Rol: `owner`, `admin` o `viewer` |
-| `created_at` | `timestamptz` | Fecha de creación |
+| `id` | `uuid` (PK) | Unique identifier |
+| `project_id` | `uuid` (FK → `projects`) | Project it belongs to |
+| `user_id` | `uuid` (FK → `auth.users`) | Supabase Auth user |
+| `role` | `text` | Role: `owner`, `admin` or `viewer` |
+| `created_at` | `timestamptz` | Creation date |
 
-**Constraint:** `UNIQUE(project_id, user_id)` — un usuario no puede tener membresía duplicada.
+**Constraint:** `UNIQUE(project_id, user_id)` — a user cannot have a duplicate membership.
 
-**RLS:** Cada usuario autenticado solo ve sus propias membresías. Anon denegado.
+**RLS:** Each authenticated user only sees their own memberships. Anon denied.
 
 ---
 
 ### `suggestions`
 
-Tablero público de feedback. Cada sugerencia pertenece a un proyecto.
+Public feedback board. Each suggestion belongs to a project.
 
-| Columna | Tipo | Descripción |
+| Column | Type | Description |
 |---|---|---|
-| `id` | `uuid` (PK) | Identificador único |
-| `project_id` | `uuid` (FK → `projects`) | Proyecto al que pertenece |
-| `title` | `text` | Título (1–300 caracteres) |
-| `description` | `text` | Descripción opcional (máx. 5000 caracteres) |
-| `status` | `text` | Estado: `open`, `planned`, `in_progress`, `shipped`, `closed` |
-| `upvotes` | `integer` | Contador de votos (mantenido automáticamente por trigger) |
-| `created_at` | `timestamptz` | Fecha de creación |
-| `updated_at` | `timestamptz` | Fecha de última modificación |
+| `id` | `uuid` (PK) | Unique identifier |
+| `project_id` | `uuid` (FK → `projects`) | Project it belongs to |
+| `title` | `text` | Title (1–300 characters) |
+| `description` | `text` | Optional description (max. 5000 characters) |
+| `status` | `text` | Status: `open`, `planned`, `in_progress`, `shipped`, `closed` |
+| `upvotes` | `integer` | Votes counter (automatically maintained by trigger) |
+| `created_at` | `timestamptz` | Creation date |
+| `updated_at` | `timestamptz` | Last modification date |
 
-**Índices:** `(project_id)`, `(project_id, status)`.
+**Indexes:** `(project_id)`, `(project_id, status)`.
 
 **RLS:**
-- Anon y authenticated: lectura pública.
-- Anon: escritura denegada.
-- Authenticated (owner/admin del proyecto): puede actualizar y eliminar.
-- Inserciones: solo vía Edge Functions (service role).
+- Anon and authenticated: public read.
+- Anon: write denied.
+- Authenticated (project owner/admin): can update and delete.
+- Inserts: only via Edge Functions (service role).
 
 ---
 
 ### `votes`
 
-Ledger público de votos. Almacena un hash del usuario, nunca su identidad real.
+Public votes ledger. Stores a user hash, never their real identity.
 
-| Columna | Tipo | Descripción |
+| Column | Type | Description |
 |---|---|---|
-| `id` | `uuid` (PK) | Identificador único |
-| `suggestion_id` | `uuid` (FK → `suggestions`) | Sugerencia votada |
-| `user_hash` | `text` | `HMAC(user_id, project_hmac_secret)` — hash salado, no reversible |
-| `project_id` | `uuid` (FK → `projects`) | Proyecto (para queries eficientes) |
-| `created_at` | `timestamptz` | Fecha del voto |
+| `id` | `uuid` (PK) | Unique identifier |
+| `suggestion_id` | `uuid` (FK → `suggestions`) | Voted suggestion |
+| `user_hash` | `text` | `HMAC(user_id, project_hmac_secret)` — salted hash, non-reversible |
+| `project_id` | `uuid` (FK → `projects`) | Project (for efficient queries) |
+| `created_at` | `timestamptz` | Vote date |
 
-**Constraint:** `UNIQUE(suggestion_id, user_hash)` — un usuario solo puede votar una vez por sugerencia.
+**Constraint:** `UNIQUE(suggestion_id, user_hash)` — a user can only vote once per suggestion.
 
-**Índices:** `(suggestion_id)`, `(user_hash)`, `(project_id)`.
+**Indexes:** `(suggestion_id)`, `(user_hash)`, `(project_id)`.
 
-**RLS:** Lectura pública (anon + authenticated). Escritura denegada para ambos — las mutaciones pasan por la Edge Function `submit-vote` con service role.
+**RLS:** Public read (anon + authenticated). Write denied for both — mutations go through the `submit-vote` Edge Function with service role.
 
 ---
 
 ### `pseudonymous_vault`
 
-Capa de cumplimiento GDPR. Almacena emails cifrados del lado del cliente, separados del ledger público de votos.
+GDPR compliance layer. Stores client-side encrypted emails, separate from the public votes ledger.
 
-| Columna | Tipo | Descripción |
+| Column | Type | Description |
 |---|---|---|
-| `id` | `uuid` (PK) | Identificador único |
-| `user_hash` | `text` | Mismo hash que en `votes` |
-| `encrypted_email` | `text` | Email cifrado en el cliente antes de enviar |
-| `project_id` | `uuid` (FK → `projects`) | Proyecto asociado |
-| `created_at` | `timestamptz` | Fecha de creación |
+| `id` | `uuid` (PK) | Unique identifier |
+| `user_hash` | `text` | Same hash as in `votes` |
+| `encrypted_email` | `text` | Email encrypted on the client before sending |
+| `project_id` | `uuid` (FK → `projects`) | Associated project |
+| `created_at` | `timestamptz` | Creation date |
 
-**Constraint:** `UNIQUE(project_id, user_hash)` — una entrada por usuario por proyecto.
+**Constraint:** `UNIQUE(project_id, user_hash)` — one entry per user per project.
 
-**RLS:** Completamente bloqueada para anon y authenticated. Solo el service role (Edge Functions) puede leer y escribir.
+**RLS:** Completely blocked for anon and authenticated. Only service role (Edge Functions) can read and write.
 
-**¿Por qué una tabla separada?**
-- El ledger de votos es público y no contiene PII.
-- La vault aísla los datos personales, permitiendo purgar PII con un solo `TRUNCATE` sin afectar votos.
-- Se puede auditar el acceso a PII de forma independiente.
+**Why a separate table?**
+- The votes ledger is public and does not contain PII.
+- The vault isolates personal data, allowing PII to be purged with a single `TRUNCATE` without affecting votes.
+- PII access can be audited independently.
 
 ---
 
 ### `used_nonces`
 
-Prevención de ataques de replay. Las Edge Functions registran cada nonce usado.
+Replay attacks prevention. Edge Functions register every used nonce.
 
-| Columna | Tipo | Descripción |
+| Column | Type | Description |
 |---|---|---|
-| `project_id` | `uuid` (FK → `projects`, PK) | Proyecto |
-| `nonce` | `text` (PK) | Nonce de un solo uso |
-| `created_at` | `timestamptz` | Momento de uso |
+| `project_id` | `uuid` (FK → `projects`, PK) | Project |
+| `nonce` | `text` (PK) | Single-use nonce |
+| `created_at` | `timestamptz` | usage Moment |
 
-**PK compuesta:** `(project_id, nonce)`.
+**Compound PK:** `(project_id, nonce)`.
 
-**RLS:** Habilitada sin políticas = denegación implícita para anon y authenticated. El service role bypassa RLS automáticamente.
+**RLS:** Enabled without policies = implicit denial for anon and authenticated. Service role automatically bypasses RLS.
 
 ---
 
 ### `webhooks`
 
-Permite a los proyectos registrar URLs de webhook para eventos como creación o envío de sugerencias.
+Allows projects to register webhook URLs for events like suggestion creation or shipment.
 
-| Columna | Tipo | Descripción |
+| Column | Type | Description |
 |---|---|---|
-| `id` | `uuid` (PK) | Identificador único |
-| `project_id` | `uuid` (FK → `projects`) | Proyecto asociado |
-| `url` | `text` | URL destino del webhook |
-| `events` | `text[]` | Eventos suscritos (default: `suggestion.created`, `suggestion.shipped`) |
-| `secret` | `text` | Secreto opcional para firmar payloads del webhook |
-| `is_active` | `boolean` | Indica si el webhook está activo |
-| `created_at` | `timestamptz` | Fecha de creación |
+| `id` | `uuid` (PK) | Unique identifier |
+| `project_id` | `uuid` (FK → `projects`) | Associated project |
+| `url` | `text` | Target webhook URL |
+| `events` | `text[]` | Subscribed events (default: `suggestion.created`, `suggestion.shipped`) |
+| `secret` | `text` | Optional secret to sign webhook payloads |
+| `is_active` | `boolean` | Indicates if the webhook is active |
+| `created_at` | `timestamptz` | Creation date |
 
-**RLS:** Miembros del proyecto pueden leer. Owners y admins pueden gestionar (CRUD completo).
-
----
-
-## Trigger automático de upvotes
-
-El script crea una función `update_suggestion_upvotes()` con dos triggers:
-
-- `AFTER INSERT` en `votes` → incrementa `suggestions.upvotes`.
-- `AFTER DELETE` en `votes` → decrementa `suggestions.upvotes` (mínimo 0).
-
-Esto mantiene el contador sincronizado sin lógica adicional en las Edge Functions. La función usa `SECURITY DEFINER` para poder actualizar `suggestions` independientemente de las políticas RLS del caller.
+**RLS:** Project members can read. Owners and admins can manage (full CRUD).
 
 ---
 
-## Modelo de seguridad RLS
+## Automatic upvotes trigger
 
-Todas las tablas tienen Row Level Security habilitado. El principio general es:
+The script creates an `update_suggestion_upvotes()` function with two triggers:
 
-| Tabla | Anon | Authenticated | Service Role |
+- `AFTER INSERT` on `votes` → increments `suggestions.upvotes`.
+- `AFTER DELETE` on `votes` → decrements `suggestions.upvotes` (minimum 0).
+
+This keeps the counter synchronized without extra logic in the Edge Functions. The function uses `SECURITY DEFINER` to be able to update `suggestions` independently of the caller's RLS policies.
+
+---
+
+## RLS Security Model
+
+All tables have Row Level Security enabled. The general principle is:
+
+| Table | Anon | Authenticated | Service Role |
 |---|---|---|---|
-| `projects` | Denegado | Lectura (solo sus proyectos) | Total |
-| `project_members` | Denegado | Lectura (solo sus membresías) | Total |
-| `suggestions` | Lectura | Lectura + Update/Delete (admins) | Total |
-| `votes` | Lectura | Lectura | Total |
-| `pseudonymous_vault` | Denegado | Denegado | Total |
-| `used_nonces` | Denegado (implícito) | Denegado (implícito) | Total |
-| `webhooks` | Denegado (implícito) | Lectura + CRUD (admins) | Total |
+| `projects` | Denied | Read (only their projects) | Total |
+| `project_members` | Denied | Read (only their memberships) | Total |
+| `suggestions` | Read | Read + Update/Delete (admins) | Total |
+| `votes` | Read | Read | Total |
+| `pseudonymous_vault` | Denied | Denied | Total |
+| `used_nonces` | Denied (implicit) | Denied (implicit) | Total |
+| `webhooks` | Denied (implicit) | Read + CRUD (admins) | Total |
 
-> **Importante:** el service role bypassa RLS automáticamente en Supabase. Las Edge Functions (`submit-vote`, `submit-suggestion`) usan este rol para todas las escrituras, después de verificar la firma HMAC del payload.
+> **Important:** the service role automatically bypasses RLS in Supabase. Edge Functions (`submit-vote`, `submit-suggestion`) use this role for all writes, after verifying the HMAC payload signature.
 
 ---
 
-## Migraciones individuales vs. Starter SQL
+## Individual Migrations vs. SQL Starter
 
-El repositorio contiene las migraciones incrementales en `supabase/migrations/`:
+The repository contains incremental migrations in `supabase/migrations/`:
 
-| Migración | Contenido |
+| Migration | Content |
 |---|---|
-| `20260217_init.sql` | Tablas core: projects, suggestions, votes, pseudonymous_vault + trigger |
-| `20260219_project_members.sql` | Tabla project_members + actualización de RLS para dashboard |
-| `20260221_used_nonces.sql` | Tabla used_nonces para prevención de replay |
-| `20260222_add_webhooks_table_and_triggers.sql` | Tabla webhooks + trigger de despacho |
+| `20260217_init.sql` | Core tables: projects, suggestions, votes, pseudonymous_vault + trigger |
+| `20260219_project_members.sql` | project_members table + RLS update for dashboard |
+| `20260221_used_nonces.sql` | used_nonces table for replay prevention |
+| `20260222_add_webhooks_table_and_triggers.sql` | webhooks table + dispatch trigger |
 
-El archivo `supabase/00_init.sql` es la consolidación de todas estas migraciones en un solo script, diseñado para usuarios que configuran un proyecto Supabase desde cero. Si ya ejecutaste las migraciones individuales, **no necesitas ejecutar `00_init.sql`**.
+The `supabase/00_init.sql` file is the consolidation of all these migrations into a single script, designed for users setting up a Supabase project from scratch. If you already ran the individual migrations, **you don't need to run `00_init.sql`**.
 
 ---
 
-## Variables de entorno necesarias
+## Required Environment Variables
 
-Después de ejecutar el SQL, tu aplicación necesitará estas variables para conectarse:
+After running the SQL, your application will need these variables to connect:
 
-| Variable | Dónde obtenerla | Uso |
+| Variable | Where to get it | Usage |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Dashboard → Settings → API → Project URL | Lecturas PostgREST desde el cliente |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Dashboard → Settings → API → anon key | Autenticación para lecturas públicas |
-| `OPENFEEDBACK_HMAC_SECRET` | Tú lo defines al crear el proyecto en la tabla `projects` | Firma de payloads (solo servidor) |
-| `NEXT_PUBLIC_OPENFEEDBACK_PROJECT_ID` | UUID del registro insertado en `projects` | Identifica tu proyecto |
+| `NEXT_PUBLIC_SUPABASE_URL` | Dashboard → Settings → API → Project URL | Client PostgREST reads |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Dashboard → Settings → API → anon key | Authentication for public reads |
+| `OPENFEEDBACK_HMAC_SECRET` | Defined by you when creating the project in the `projects` table | Payload signing (server only) |
+| `NEXT_PUBLIC_OPENFEEDBACK_PROJECT_ID` | UUID of the record inserted into `projects` | Identifies your project |
 
-> **Seguridad:** `OPENFEEDBACK_HMAC_SECRET` es solo para el servidor (Server Actions / API Routes). Nunca uses el prefijo `NEXT_PUBLIC_` para esta variable.
+> **Security:** `OPENFEEDBACK_HMAC_SECRET` is only for the server (Server Actions / API Routes). Never use the `NEXT_PUBLIC_` prefix for this variable.
 
 ---
 
-## Crear tu primer proyecto
+## Creating your first project
 
-Después de ejecutar el starter SQL, inserta tu primer proyecto usando el SQL Editor de Supabase:
+After running the starter SQL, insert your first project using the Supabase SQL Editor:
 
 ```sql
 insert into projects (name, hmac_secret)
-values ('Mi App', 'un-secreto-aleatorio-largo-y-seguro')
+values ('My App', 'a-long-and-secure-random-secret')
 returning id;
 ```
 
-Guarda el `id` devuelto — es tu `OPENFEEDBACK_PROJECT_ID`. El `hmac_secret` debe ser una cadena aleatoria larga (mínimo 32 caracteres). Puedes generarla con:
+Save the returned `id` — it is your `OPENFEEDBACK_PROJECT_ID`. The `hmac_secret` must be a long random string (minimum 32 characters). You can generate it with:
 
 ```bash
 openssl rand -hex 32
 ```
 
-Si usas el dashboard de administración, crea también tu membresía:
+If you use the administration dashboard, create your membership as well:
 
 ```sql
 insert into project_members (project_id, user_id, role)
-values ('<project-id>', '<tu-auth-user-id>', 'owner');
+values ('<project-id>', '<your-auth-user-id>', 'owner');
 ```

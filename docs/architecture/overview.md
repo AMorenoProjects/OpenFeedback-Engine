@@ -1,12 +1,12 @@
-# Arquitectura del Sistema
+# System Architecture
 
-> Documento técnico que describe la arquitectura implementada de OpenFeedback Engine.
+> Technical document describing the implemented architecture of OpenFeedback Engine.
 
 ---
 
-## 1. Vista General
+## 1. Overview
 
-OpenFeedback Engine es un monorepo que contiene tres capas:
+OpenFeedback Engine is a monorepo containing three layers:
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -42,110 +42,110 @@ OpenFeedback Engine es un monorepo que contiene tres capas:
                           └────────────────────┘
 ```
 
-**Reads** (sugerencias, votos) van directo a PostgREST con el `anon key`. RLS permite lectura pública.
+**Reads** (suggestions, votes) go straight to PostgREST using the `anon key`. RLS allows public read access.
 
-**Writes** (votar, crear sugerencia) pasan por Edge Functions que verifican la firma HMAC antes de escribir con el `service role` (bypass RLS).
+**Writes** (voting, creating a suggestion) pass through Edge Functions that verify the HMAC signature before writing using the `service role` (bypassing RLS).
 
 ---
 
-## 2. Estructura del Monorepo
+## 2. Monorepo Structure
 
 ```text
 /
 ├── apps/
-│   ├── web-dashboard/         # Panel admin para clientes Managed
-│   ├── docs/                  # Sitio de documentación
-│   └── demo-app/              # App Next.js de ejemplo
+│   ├── web-dashboard/         # Admin panel for Managed clients
+│   ├── docs/                  # Documentation site
+│   └── demo-app/              # Next.js example app
 │
 ├── packages/
-│   ├── react/                 # SDK React (@openfeedback/react)
+│   ├── react/                 # React SDK (@openfeedback/react)
 │   │   └── src/
 │   │       ├── components/    # OpenFeedbackProvider
 │   │       ├── hooks/         # useSuggestions, useVote, useSubmitSuggestion
-│   │       ├── types/         # Re-exports de @openfeedback/client
+│   │       ├── types/         # Re-exports from @openfeedback/client
 │   │       └── utils/         # cn() (clsx + tailwind-merge)
 │   │
-│   ├── client/                # Cliente JS (@openfeedback/client)
+│   ├── client/                # JS Client (@openfeedback/client)
 │   │   └── src/
-│   │       ├── index.ts       # Entry point browser-safe
-│   │       ├── server.ts      # Entry point Node.js (HMAC signing)
-│   │       ├── schemas.ts     # Zod schemas (source of truth para tipos)
-│   │       ├── types.ts       # TypeScript types inferidos de Zod
+│   │       ├── index.ts       # Browser-safe entry point
+│   │       ├── server.ts      # Node.js entry point (HMAC signing)
+│   │       ├── schemas.ts     # Zod schemas (source of truth for types)
+│   │       ├── types.ts       # TypeScript types inferred from Zod
 │   │       ├── constants.ts   # TABLE names, AUTH config
 │   │       ├── api-client.ts  # OpenFeedbackClient class
 │   │       └── signing.ts     # signRequestBody(), generateNonce()
 │   │
 │   ├── cli/                   # CLI (@openfeedback/cli)
-│   ├── typescript-config/     # TSConfigs compartidos
-│   └── tailwind-config/       # Preset Tailwind compartido
+│   ├── typescript-config/     # Shared TSConfigs
+│   └── tailwind-config/       # Shared Tailwind preset
 │
 ├── supabase/
 │   ├── migrations/
-│   │   └── 20260217_init.sql  # Schema completo + RLS + triggers
+│   │   └── 20260217_init.sql  # Full schema + RLS + triggers
 │   └── functions/
-│       ├── _shared/           # Lógica compartida entre Edge Functions
-│       │   ├── auth.ts        # Pipeline de verificación completo
+│       ├── _shared/           # Shared logic between Edge Functions
+│       │   ├── auth.ts        # Complete verification pipeline
 │       │   ├── crypto.ts      # HMAC, timingSafeEqual, hashUserId
-│       │   ├── nonce.ts       # Verificación async en tabla used_nonces
-│       │   ├── cors.ts        # Headers CORS
-│       │   ├── response.ts    # Helpers de respuesta JSON/error
-│       │   └── validation.ts  # Validación runtime de payloads
-│       ├── submit-vote/       # Edge Function: votar/desvotar
-│       └── submit-suggestion/ # Edge Function: crear sugerencia
+│       │   ├── nonce.ts       # Async verification in used_nonces table
+│       │   ├── cors.ts        # CORS headers
+│       │   ├── response.ts    # JSON/error response helpers
+│       │   └── validation.ts  # Runtime payload validation
+│       ├── submit-vote/       # Edge Function: vote/unvote
+│       └── submit-suggestion/ # Edge Function: create suggestion
 │
-└── docker/                    # Configuración Self-Hosting
+└── docker/                    # Self-Hosting configuration
 ```
 
-### Herramientas del Monorepo
+### Monorepo Tools
 
-| Herramienta | Propósito |
+| Tool | Purpose |
 |---|---|
-| **pnpm workspaces** | Gestión de dependencias con aislamiento estricto |
-| **Turborepo** | Orquestación de builds con cache incremental |
-| **tsup** (esbuild) | Compilación de librerías — dual ESM/CJS + `.d.ts` |
+| **pnpm workspaces** | Dependency management with strict isolation |
+| **Turborepo** | Build orchestration with incremental caching |
+| **tsup** (esbuild) | Library compilation — dual ESM/CJS + `.d.ts` |
 | **TypeScript 5.7+** | Strict mode, `noUncheckedIndexedAccess`, `bundler` moduleResolution |
 
 ---
 
-## 3. Paquetes y Responsabilidades
+## 3. Packages and Responsibilities
 
 ### `@openfeedback/client` (packages/client)
 
-El contrato compartido entre frontend y backend. Tres entry points:
+The shared contract between frontend and backend. Three entry points:
 
-| Import | Entorno | Contenido |
+| Import | Environment | Content |
 |---|---|---|
-| `@openfeedback/client` | Browser + Node | Schemas Zod, tipos, `OpenFeedbackClient`, constantes |
-| `@openfeedback/client/server` | Solo Node.js | `signRequestBody()`, `generateNonce()` (usa `node:crypto`) |
-| `@openfeedback/client/next` | Server (Next.js) | `OpenFeedbackProxy()` Route Handler preconfigurado |
+| `@openfeedback/client` | Browser + Node | Zod schemas, types, `OpenFeedbackClient`, constants |
+| `@openfeedback/client/server` | Node.js Only | `signRequestBody()`, `generateNonce()` (uses `node:crypto`) |
+| `@openfeedback/client/next` | Server (Next.js) | Preconfigured `OpenFeedbackProxy()` Route Handler |
 
-**`OpenFeedbackClient`** es el wrapper HTTP tipado:
-- **Reads** (`getSuggestions`, `getSuggestion`, `hasVoted`): usan PostgREST con `anon key`
-- **Writes** (`submitVote`, `submitSuggestion`): Si se inyecta por el Proxy, se llaman hacia el Proxy. Internamente llaman a Edge Functions con firma HMAC.
+**`OpenFeedbackClient`** is the typed HTTP wrapper:
+- **Reads** (`getSuggestions`, `getSuggestion`, `hasVoted`): Use PostgREST with `anon key`
+- **Writes** (`submitVote`, `submitSuggestion`): Calls the internal Next.js Proxy if injected. Internally calls Edge Functions with an HMAC signature.
 
 ### `@openfeedback/react` (packages/react)
 
-SDK de React. Depende de `@openfeedback/client`.
+React SDK. Depends on `@openfeedback/client`.
 
-| Export | Tipo | Descripción |
+| Export | Type | Description |
 |---|---|---|
-| `<OpenFeedbackProvider>` | Componente | Instancia `OpenFeedbackClient`, provee contexto (`proxyUrl`) |
-| `useOpenFeedback()` | Hook | Acceso al client y configuración |
-| `useSuggestions()` | Hook | Fetch de sugerencias con estado de loading/error |
-| `useVote()` | Hook | Votar/desvotar (routea al proxy interno de Next.js) |
-| `useSubmitSuggestion()` | Hook | Crear sugerencia (routea al proxy interno de Next.js) |
-| `cn()` | Utilidad | `clsx` + `tailwind-merge` para componentes headless |
+| `<OpenFeedbackProvider>` | Component | Instantiates `OpenFeedbackClient`, provides context (`proxyUrl`) |
+| `useOpenFeedback()` | Hook | Access to the client and configuration |
+| `useSuggestions()` | Hook | Fetches suggestions with loading/error state |
+| `useVote()` | Hook | Vote/unvote (routes to internal Next.js proxy) |
+| `useSubmitSuggestion()` | Hook | Create suggestion (routes to internal Next.js proxy) |
+| `cn()` | Utility | `clsx` + `tailwind-merge` for headless components |
 
 ### `@openfeedback/cli` (packages/cli)
 
-Herramienta de línea de comandos (skeleton). Planificado para:
-- Análisis de historial Git con fuzzy matching
-- Generación de changelogs
-- `openfeedback sync` para Roadmap-as-Code
+Command-line tool (skeleton). Planned for:
+- Git history analysis with fuzzy matching
+- Changelog generation
+- `openfeedback sync` for Roadmap-as-Code
 
 ### Edge Functions (supabase/functions/)
 
-Todas las Edge Functions comparten el mismo pipeline de autenticación via `_shared/`:
+All Edge Functions share the same authentication pipeline via `_shared/`:
 
 ```
 Request → CORS check → Parse JSON → Validate body → Check timestamp
@@ -153,14 +153,14 @@ Request → CORS check → Parse JSON → Validate body → Check timestamp
         → Check nonce replay → Execute business logic
 ```
 
-| Función | Endpoint | Acción |
+| Function | Endpoint | Action |
 |---|---|---|
-| `submit-vote` | `POST /functions/v1/submit-vote` | INSERT o DELETE en `votes` |
-| `submit-suggestion` | `POST /functions/v1/submit-suggestion` | INSERT en `suggestions` + UPSERT en `pseudonymous_vault` |
+| `submit-vote` | `POST /functions/v1/submit-vote` | INSERT or DELETE in `votes` |
+| `submit-suggestion` | `POST /functions/v1/submit-suggestion` | INSERT in `suggestions` + UPSERT in `pseudonymous_vault` |
 
 ---
 
-## 4. Flujo de Datos: Ciclo de Vida de un Voto
+## 4. Data Flow: Vote Lifecycle
 
 ```
 1. Browser (React Hook):
@@ -171,60 +171,60 @@ Request → CORS check → Parse JSON → Validate body → Check timestamp
 
 2. Host App (Proxy Route Handler):
    │
-   ├─ sesion = getUser()
-   ├─ auth = { user_id: sesion.id, nonce: generateNonce(), timestamp: Date.now(), project_id }
+   ├─ session = getUser()
+   ├─ auth = { user_id: session.id, nonce: generateNonce(), timestamp: Date.now(), project_id }
    ├─ body = JSON.stringify({ auth, vote: { suggestion_id, direction: "up" } })
    ├─ signature = signRequestBody(body, HMAC_SECRET)
    └─ POST /functions/v1/submit-vote (Headers: { x-openfeedback-signature })
 
 3. Edge Function (submit-vote):
    │
-   ├─ Valida body con validateVoteRequest()
-   ├─ Verifica timestamp (±5 min)
-   ├─ Fetch project.hmac_secret de DB
-   ├─ Computa HMAC(rawBody, secret)
+   ├─ Validate body with validateVoteRequest()
+   ├─ Verify timestamp (±5 min)
+   ├─ Fetch project.hmac_secret from DB
+   ├─ Compute HMAC(rawBody, secret)
    ├─ timingSafeEqual(received_sig, expected_sig)
-   ├─ Marca nonce como usado
+   ├─ Mark nonce as used
    ├─ userHash = HMAC(user_id, project_secret)  ← salted per-project
    └─ INSERT INTO votes (suggestion_id, user_hash, project_id)
 ```
-4. Trigger PostgreSQL:
+4. PostgreSQL Trigger:
    │
    └─ UPDATE suggestions SET upvotes = upvotes + 1
 ```
 
 ---
 
-## 5. Configuración Compartida
+## 5. Shared Configuration
 
 ### TypeScript (`packages/typescript-config`)
 
-| Config | Uso | Particularidades |
+| Config | Usage | Details |
 |---|---|---|
-| `base.json` | Base para todos | `strict`, `noUncheckedIndexedAccess`, `bundler` resolution |
-| `react-library.json` | `packages/react` | Extiende base + `jsx: "react-jsx"`, DOM libs |
-| `nextjs.json` | `apps/demo-app` | Extiende base + `jsx: "preserve"`, plugin Next.js |
-| `node.json` | `packages/cli` | Extiende base, sin DOM libs |
+| `base.json` | Base for all | `strict`, `noUncheckedIndexedAccess`, `bundler` resolution |
+| `react-library.json` | `packages/react` | Extends base + `jsx: "react-jsx"`, DOM libs |
+| `nextjs.json` | `apps/demo-app` | Extends base + `jsx: "preserve"`, Next.js plugin |
+| `node.json` | `packages/cli` | Extends base, no DOM libs |
 
 ### Tailwind (`packages/tailwind-config`)
 
-Preset compartido con escalas de color propias:
-- `of-primary-{50..900}` — azul para acciones principales
-- `of-neutral-{50..900}` — grises para UI base
-- `borderRadius.of` — `0.5rem` estándar
+Shared preset with custom color scales:
+- `of-primary-{50..900}` — blue for primary actions
+- `of-neutral-{50..900}` — grays for base UI
+- `borderRadius.of` — standard `0.5rem`
 
 ---
 
-## 6. Integración y Webhooks (Phase 5)
+## 6. Integrations and Webhooks (Phase 5)
 
-Para soportar notificaciones en herramientas de colaboración nativas como Slack o Discord, OpenFeedback implementa un sistema de **Outbound Webhooks**.
+To support notifications in native collaboration tools like Slack or Discord, OpenFeedback implements an **Outbound Webhooks** system.
 
-1. Una tabla `webhooks` almacena los endpoints configurados por proyecto.
-2. Un **Trigger de PostgreSQL** escucha eventos de `INSERT` o `UPDATE` (ej. cuando el estado cambia a `shipped`) en la tabla `suggestions`.
-3. El trigger encola y transmite de forma fiable el payload asincrónicamente usando `pg_net` hacia la Edge Function `dispatch-webhook`.
-4. `dispatch-webhook` transforma el payload estándar a formatos enriquecidos (como Embeds de Discord) y ejecuta el HTTP POST final al consumidor.
+1. A `webhooks` table stores endpoints configured per project.
+2. A **PostgreSQL Trigger** listens for `INSERT` or `UPDATE` events (e.g., when the status changes to `shipped`) in the `suggestions` table.
+3. The trigger queues and reliably transmits the payload asynchronously using `pg_net` to the `dispatch-webhook` Edge Function.
+4. `dispatch-webhook` transforms the standard payload into rich formats (like Discord Embeds) and executes the final HTTP POST to the consumer.
 
-*Ejemplo de Evento Discord: suggestion.created*
+*Discord Event Example: suggestion.created*
 ```json
 {
   "content": "🚀 **New Suggestion Created:** Export to PDF",

@@ -1,13 +1,13 @@
 # Admin Dashboard
 
-> Documentación técnica del panel administrativo para dueños de proyectos.
-> Aplicación: `apps/web-dashboard` — Next.js 15 (App Router), puerto `3100`.
+> Technical documentation of the administrative panel for project owners.
+> Application: `apps/web-dashboard` — Next.js 15 (App Router), port `3100`.
 
 ---
 
-## 1. Vista General
+## 1. Overview
 
-El Admin Dashboard permite a los dueños de proyectos gestionar sus configuraciones y moderar el feedback de los usuarios finales. Es una aplicación independiente del SDK público — no comparte autenticación con los usuarios que votan.
+The Admin Dashboard allows project owners to manage their settings and moderate feedback from end users. It is an application independent of the public SDK — it does not share authentication with the users who vote.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -21,20 +21,20 @@ El Admin Dashboard permite a los dueños de proyectos gestionar sus configuracio
 │  │ Project detail       │      │   → crypto.randomBytes   │  │
 │  │ Moderation panel     │      │ updateSuggestionStatus() │  │
 │  │                      │      │   → authenticated client │  │
-│  │ supabase browser     │      │   → RLS verifica acceso  │  │
+│  │ supabase browser     │      │   → RLS checks access    │  │
 │  │ client (auth only)   │      │                          │  │
 │  └──────────┬───────────┘      └────────────┬─────────────┘  │
 └─────────────┼───────────────────────────────┼────────────────┘
               │                               │
               │  Supabase Auth                │  Supabase
               │  (email/password)             │  (anon key + RLS)
-              │                               │  (service role para writes)
+              │                               │  (service role for writes)
               ▼                               ▼
         ┌─────────────────────────────────────────┐
         │              Supabase                    │
         │                                          │
         │  auth.users    project_members           │
-        │  (identidad)   (membresía + rol)         │
+        │  (identity)    (membership + role)       │
         │                                          │
         │  projects      suggestions    votes      │
         │  (RLS scoped)  (RLS scoped)  (read-only) │
@@ -43,11 +43,11 @@ El Admin Dashboard permite a los dueños de proyectos gestionar sus configuracio
 
 ---
 
-## 2. Autenticación
+## 2. Authentication
 
-El dashboard usa **Supabase Auth** con email y contraseña. Este sistema es completamente independiente del Signed Stateless Auth que usan los usuarios finales del SDK.
+The dashboard uses **Supabase Auth** with email and password. This system is completely independent of the Signed Stateless Auth used by the end users of the SDK.
 
-### Flujo de login
+### Login Flow
 
 ```
 Browser                    Middleware                   Supabase Auth
@@ -74,32 +74,32 @@ Browser                    Middleware                   Supabase Auth
 
 ### Middleware
 
-`src/middleware.ts` protege todas las rutas excepto `/login`, `/auth/*` y assets estáticos de Next.js. En cada request:
+`src/middleware.ts` protects all routes except `/login`, `/auth/*`, and Next.js static assets. On every request:
 
-1. Refresca la sesión de Supabase (cookies)
-2. Llama a `getUser()` para verificar autenticación
-3. Redirige a `/login` si no hay sesión válida
+1. Refreshes the Supabase session (cookies)
+2. Calls `getUser()` to verify authentication
+3. Redirects to `/login` if there is no valid session
 
 **Matcher:** `/((?!_next/static|_next/image|favicon.ico|login|auth).*)`
 
-### Diferencia con el auth del SDK
+### Difference with SDK Auth
 
-| Aspecto | SDK (usuarios finales) | Dashboard (admins) |
+| Aspect | SDK (end users) | Dashboard (admins) |
 |---|---|---|
-| Mecanismo | HMAC-SHA256 por request | Supabase Auth (sesión cookie) |
-| Identidad | `user_hash` (pseudónimo) | `auth.users.id` (UUID real) |
-| Almacenamiento | Sin estado (stateless) | Cookie de sesión |
-| Tabla asociada | `votes`, `pseudonymous_vault` | `project_members` |
+| Mechanism | HMAC-SHA256 per request | Supabase Auth (session cookie) |
+| Identity | `user_hash` (pseudonym) | `auth.users.id` (real UUID) |
+| Storage | Stateless | Session cookie |
+| Associated Table | `votes`, `pseudonymous_vault` | `project_members` |
 
 ---
 
-## 3. Modelo de Autorización
+## 3. Authorization Model
 
-### Tabla `project_members`
+### `project_members` Table
 
-Migración: `supabase/migrations/20260219_project_members.sql`
+Migration: `supabase/migrations/20260219_project_members.sql`
 
-| Columna | Tipo | Restricciones | Descripción |
+| Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | `uuid` | PK, default `gen_random_uuid()` | |
 | `project_id` | `uuid` | FK → `projects(id)` ON DELETE CASCADE | |
@@ -107,61 +107,61 @@ Migración: `supabase/migrations/20260219_project_members.sql`
 | `role` | `text` | NOT NULL, default `'owner'`, CHECK enum | `owner`, `admin`, `viewer` |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
-**Unique constraint:** `uq_project_member (project_id, user_id)` — un usuario no puede tener roles duplicados en el mismo proyecto.
+**Unique constraint:** `uq_project_member (project_id, user_id)` — a user cannot have duplicated roles in the same project.
 
-### Roles y permisos
+### Roles and Permissions
 
-| Permiso | `owner` | `admin` | `viewer` |
+| Permission | `owner` | `admin` | `viewer` |
 |---|---|---|---|
-| Ver proyecto y `hmac_secret` | Si | Si | Si |
-| Editar nombre del proyecto | Si | Si | No |
-| Eliminar proyecto | Si | No | No |
-| Ver sugerencias | Si | Si | Si |
-| Cambiar estado de sugerencia | Si | Si | No |
-| Eliminar sugerencia | Si | Si | No |
+| View project and `hmac_secret` | Yes | Yes | Yes |
+| Edit project name | Yes | Yes | No |
+| Delete project | Yes | No | No |
+| View suggestions | Yes | Yes | Yes |
+| Change suggestion status | Yes | Yes | No |
+| Delete suggestion | Yes | Yes | No |
 
-### Políticas RLS actualizadas
+### Updated RLS Policies
 
-La migración `20260219_project_members.sql` modifica las políticas RLS del schema original:
+The migration `20260219_project_members.sql` modifies the RLS policies of the original schema:
 
 **`project_members`:**
 
-| Política | Rol | Operación | Regla |
+| Policy | Role | Operation | Rule |
 |---|---|---|---|
 | `members_select_own` | `authenticated` | SELECT | `user_id = auth.uid()` |
 | `members_no_anon` | `anon` | ALL | `USING (false)` |
 
-**`projects`** (reemplaza `projects_no_authenticated_access`):
+**`projects`** (replaces `projects_no_authenticated_access`):
 
-| Política | Rol | Operación | Regla |
+| Policy | Role | Operation | Rule |
 |---|---|---|---|
-| `projects_no_anon_access` | `anon` | ALL | `USING (false)` — sin cambios |
-| `projects_authenticated_read_own` | `authenticated` | SELECT | Existe en `project_members` con `user_id = auth.uid()` |
+| `projects_no_anon_access` | `anon` | ALL | `USING (false)` — unmodified |
+| `projects_authenticated_read_own` | `authenticated` | SELECT | Exists in `project_members` with `user_id = auth.uid()` |
 | `projects_no_authenticated_insert` | `authenticated` | INSERT | `WITH CHECK (false)` |
 | `projects_no_authenticated_update` | `authenticated` | UPDATE | `USING (false)` |
 | `projects_no_authenticated_delete` | `authenticated` | DELETE | `USING (false)` |
 
-**`suggestions`** (reemplaza `suggestions_no_authenticated_update` y `_delete`):
+**`suggestions`** (replaces `suggestions_no_authenticated_update` and `_delete`):
 
-| Política | Rol | Operación | Regla |
+| Policy | Role | Operation | Rule |
 |---|---|---|---|
-| `suggestions_authenticated_update_own` | `authenticated` | UPDATE | Miembro con rol `owner` o `admin` |
-| `suggestions_authenticated_delete_own` | `authenticated` | DELETE | Miembro con rol `owner` o `admin` |
+| `suggestions_authenticated_update_own` | `authenticated` | UPDATE | Member with role `owner` or `admin` |
+| `suggestions_authenticated_delete_own` | `authenticated` | DELETE | Member with role `owner` or `admin` |
 
-> **Nota:** Las políticas de SELECT y INSERT en `suggestions` no cambian. La lectura sigue siendo pública y la inserción sigue denegada para `authenticated` (las sugerencias se crean vía Edge Functions).
+> **Note:** The SELECT and INSERT policies on `suggestions` remain unchanged. Reading is still public, and insertion is still denied for `authenticated` (suggestions are created via Edge Functions).
 
 ---
 
-## 4. Clientes Supabase
+## 4. Supabase Clients
 
-El dashboard usa tres clientes Supabase con propósitos distintos:
+The dashboard uses three Supabase clients for distinct purposes:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                                                              │
 │  Browser (Client Components)                                 │
 │  ┌────────────────────────────┐                              │
-│  │ createBrowserClient()      │ ← Solo para auth             │
+│  │ createBrowserClient()      │ ← Only for auth              │
 │  │ supabase.auth.signIn()     │   (login, logout, session)   │
 │  │ supabase.auth.signOut()    │                              │
 │  └────────────────────────────┘                              │
@@ -169,81 +169,81 @@ El dashboard usa tres clientes Supabase con propósitos distintos:
 │  Server (Server Components + Server Actions)                 │
 │  ┌────────────────────────────┐                              │
 │  │ createServerSupabaseClient │ ← Reads + moderation writes  │
-│  │ (cookie-based, anon key)   │   RLS filtra por membresía   │
+│  │ (cookie-based, anon key)   │   RLS filters by membership  │
 │  │                            │                              │
-│  │ Usado en:                  │                              │
-│  │ - Server Components        │ ← Lectura de proyectos,      │
-│  │ - updateSuggestionStatus() │   sugerencias, estadísticas  │
+│  │ Used in:                   │                              │
+│  │ - Server Components        │ ← Read projects,             │
+│  │ - updateSuggestionStatus() │   suggestions, stats         │
 │  │ - deleteSuggestion()       │                              │
 │  └────────────────────────────┘                              │
 │                                                              │
 │  ┌────────────────────────────┐                              │
-│  │ createAdminClient()        │ ← Solo Server Actions que     │
-│  │ (service role key)         │   requieren bypass de RLS    │
+│  │ createAdminClient()        │ ← Only Server Actions that    │
+│  │ (service role key)         │   require RLS bypass         │
 │  │                            │                              │
-│  │ Usado en:                  │                              │
-│  │ - createProject()          │ ← INSERT en projects + la    │
-│  │ - updateProject()          │   primera membership row     │
+│  │ Used in:                   │                              │
+│  │ - createProject()          │ ← INSERT in projects + the   │
+│  │ - updateProject()          │   first membership row       │
 │  │ - deleteProject()          │                              │
 │  └────────────────────────────┘                              │
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-| Cliente | Archivo | Clave usada | Dónde se ejecuta | Propósito |
+| Client | File | Key used | Execution Context | Purpose |
 |---|---|---|---|---|
 | Browser | `lib/supabase/client.ts` | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser | Auth (login/logout) |
-| Server | `lib/supabase/server.ts` | `NEXT_PUBLIC_SUPABASE_ANON_KEY` + cookies | Server | Queries con RLS |
-| Admin | `lib/supabase/admin.ts` | `SUPABASE_SERVICE_ROLE_KEY` | Server (Actions) | Bypass RLS para CRU en `projects` |
+| Server | `lib/supabase/server.ts` | `NEXT_PUBLIC_SUPABASE_ANON_KEY` + cookies | Server | Queries with RLS |
+| Admin | `lib/supabase/admin.ts` | `SUPABASE_SERVICE_ROLE_KEY` | Server (Actions) | Bypass RLS for CRU in `projects` |
 
-### Por qué dos clientes server-side
+### Why two server-side clients
 
-- **Server client (anon + cookies):** Usa la sesión del usuario autenticado. RLS verifica automáticamente que el usuario es miembro del proyecto. Usado para leer proyectos, leer sugerencias, moderar (UPDATE/DELETE en suggestions).
+- **Server client (anon + cookies):** Uses the authenticated user's session. RLS automatically verifies that the user is a project member. Used to read projects, read suggestions, and moderate (UPDATE/DELETE on suggestions).
 
-- **Admin client (service role):** Necesario solo para operaciones que RLS bloquea para `authenticated`: INSERT en `projects`, INSERT en `project_members` (para el primer owner), UPDATE/DELETE en `projects`. Cada Server Action que usa el admin client verifica la membresía manualmente antes de ejecutar (`requireProjectAccess()`).
+- **Admin client (service role):** Required only for operations that RLS blocks for `authenticated`: INSERT in `projects`, INSERT in `project_members` (for the first owner), UPDATE/DELETE in `projects`. Each Server Action using the admin client verifies membership manually before executing (`requireProjectAccess()`).
 
 ---
 
-## 5. Estructura de Archivos
+## 5. File Structure
 
 ```text
 apps/web-dashboard/
 ├── src/
-│   ├── middleware.ts                              # Protección de rutas
+│   ├── middleware.ts                              # Route protection
 │   ├── app/
 │   │   ├── layout.tsx                             # Root layout
 │   │   ├── globals.css                            # Tailwind directives
 │   │   ├── login/
-│   │   │   └── page.tsx                           # Formulario de login
+│   │   │   └── page.tsx                           # Login form
 │   │   ├── auth/
 │   │   │   └── callback/
 │   │   │       └── route.ts                       # Code exchange (email confirm)
-│   │   └── (dashboard)/                           # Route group autenticado
+│   │   └── (dashboard)/                           # Authenticated route group
 │   │       ├── layout.tsx                         # Sidebar + Header
 │   │       ├── page.tsx                           # Redirect → /projects
 │   │       └── projects/
-│   │           ├── page.tsx                        # Lista de proyectos
-│   │           ├── actions.ts                      # Server Actions: CRUD proyectos
+│   │           ├── page.tsx                        # List of projects
+│   │           ├── actions.ts                      # Server Actions: Project CRUD
 │   │           ├── new/
-│   │           │   └── page.tsx                    # Crear proyecto
+│   │           │   └── page.tsx                    # Create project
 │   │           └── [projectId]/
-│   │               ├── page.tsx                    # Detalle: settings, API key, stats
+│   │               ├── page.tsx                    # Details: settings, API key, stats
 │   │               └── moderation/
-│   │                   ├── page.tsx                # Lista sugerencias + filtros
+│   │                   ├── page.tsx                # List suggestions + filters
 │   │                   └── actions.ts              # Server Actions: status, delete
 │   ├── components/
-│   │   ├── Sidebar.tsx                            # Navegación lateral
-│   │   ├── Header.tsx                             # Barra superior con email
+│   │   ├── Sidebar.tsx                            # Side navigation
+│   │   ├── Header.tsx                             # Top bar with email
 │   │   ├── LogoutButton.tsx                       # Client Component (signOut)
-│   │   ├── CreateProjectForm.tsx                  # Formulario de nuevo proyecto
-│   │   ├── EditProjectForm.tsx                    # Edición inline de nombre
-│   │   ├── DeleteProjectButton.tsx                # Botón con confirmación
+│   │   ├── CreateProjectForm.tsx                  # New project form
+│   │   ├── EditProjectForm.tsx                    # Inline name editing
+│   │   ├── DeleteProjectButton.tsx                # Button with confirmation
 │   │   ├── SecretDisplay.tsx                      # hmac_secret masked + reveal + copy
-│   │   ├── SuggestionRow.tsx                      # Fila de sugerencia con acciones
-│   │   ├── StatusBadge.tsx                        # Badge coloreado por estado
-│   │   └── StatusFilter.tsx                       # Tabs de filtro por estado
+│   │   ├── SuggestionRow.tsx                      # Suggestion row with actions
+│   │   ├── StatusBadge.tsx                        # Colored badge by status
+│   │   └── StatusFilter.tsx                       # Filter tabs by status
 │   └── lib/
-│       ├── errors.ts                              # Sanitización de errores
+│       ├── errors.ts                              # Error sanitization
 │       ├── auth-guard.ts                          # requireAuth(), requireProjectAccess()
 │       └── supabase/
 │           ├── client.ts                          # Browser client
@@ -260,37 +260,37 @@ apps/web-dashboard/
 
 ---
 
-## 6. Pantallas
+## 6. Screens
 
 ### 6.1 Login (`/login`)
 
-Formulario con email y contraseña. Usa el browser client de Supabase (`signInWithPassword`). Errores sanitizados: siempre muestra "Invalid email or password" sin importar la causa real. Redirige a `/projects` tras login exitoso.
+Form with email and password. Uses the Supabase browser client (`signInWithPassword`). Sanitized errors: always shows "Invalid email or password" regardless of the real cause. Redirects to `/projects` upon successful login.
 
-### 6.2 Lista de Proyectos (`/projects`)
+### 6.2 Project List (`/projects`)
 
-Server Component que consulta `project_members` → `projects` usando el server client (RLS devuelve solo los proyectos del usuario). Muestra cards con nombre y fecha de creación. Botón "New Project" lleva a `/projects/new`.
+Server Component querying `project_members` → `projects` using the server client (RLS returns only the user's projects). Displays cards with name and creation date. "New Project" button goes to `/projects/new`.
 
-### 6.3 Crear Proyecto (`/projects/new`)
+### 6.3 Create Project (`/projects/new`)
 
-Formulario que ejecuta la Server Action `createProject()`:
+Form executing the `createProject()` Server Action:
 
-1. Valida que el usuario está autenticado (`requireAuth()`)
-2. Genera `hmac_secret` con `crypto.randomBytes(32).toString("hex")` (256 bits)
-3. Inserta en `projects` via service role (bypass RLS)
-4. Inserta fila en `project_members` con `role: 'owner'` via service role
-5. Si la membresía falla, hace rollback del proyecto
-6. Redirige a `/projects/{id}`
+1. Validates that the user is authenticated (`requireAuth()`)
+2. Generates `hmac_secret` using `crypto.randomBytes(32).toString("hex")` (256 bits)
+3. Inserts into `projects` via service role (bypasses RLS)
+4. Inserts row into `project_members` with `role: 'owner'` via service role
+5. If membership insertion fails, rolls back the project
+6. Redirects to `/projects/{id}`
 
-### 6.4 Detalle de Proyecto (`/projects/[projectId]`)
+### 6.4 Project Details (`/projects/[projectId]`)
 
-Server Component con cuatro secciones:
+Server Component exposing four sections:
 
 ```
 ┌──────────────────────────────────────────┐
 │  ← Back to Projects                      │
 ├──────────────────────────────────────────┤
 │  Project Settings                        │
-│  [nombre del proyecto     ] [Save]       │
+│  [project name            ] [Save]       │
 ├──────────────────────────────────────────┤
 │  API Key                                 │
 │  Use this HMAC secret to sign requests   │
@@ -308,13 +308,13 @@ Server Component con cuatro secciones:
 └──────────────────────────────────────────┘
 ```
 
-**`SecretDisplay`:** El `hmac_secret` se obtiene server-side (Server Component lee de la tabla `projects` via RLS). Se pasa como prop al Client Component `SecretDisplay`, que lo muestra masked por defecto (primeros 8 + últimos 4 caracteres). Botones "Reveal" y "Copy to clipboard".
+**`SecretDisplay`:** The `hmac_secret` is fetched server-side (Server Component reads from the `projects` table via RLS). It is passed as a prop to the `SecretDisplay` Client Component, which masks it by default (first 8 + last 4 characters). Provides "Reveal" and "Copy to clipboard" buttons.
 
-> **Seguridad:** El `hmac_secret` es legible porque el RLS de `projects` permite SELECT a miembros autenticados. No hay riesgo de filtración al browser porque el dashboard es una aplicación privada para admins. El secreto solo llega al HTML renderizado para usuarios que ya tienen acceso legítimo.
+> **Security:** The `hmac_secret` is readable because the `projects` RLS allows SELECT for authenticated members. There's no risk of leakage to the browser because the dashboard is a private application for admins. The secret only reaches the rendered HTML for users with legitimate access.
 
-### 6.5 Moderación (`/projects/[projectId]/moderation`)
+### 6.5 Moderation (`/projects/[projectId]/moderation`)
 
-Lista de sugerencias del proyecto con filtrado y acciones:
+List of suggestions for the project with filtering and actions:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -335,129 +335,129 @@ Lista de sugerencias del proyecto con filtrado y acciones:
 └──────────────────────────────────────────────────────────────┘
 ```
 
-**Filtros:** Los tabs de estado y la búsqueda por título usan query params de la URL (`?status=open&q=dark`). El Server Component lee estos params y construye la query Supabase con `.eq("status", ...)` y `.ilike("title", ...)`.
+**Filters:** State tabs and title search use URL query parameters (`?status=open&q=dark`). The Server Component reads these parameters and builds the Supabase query with `.eq("status", ...)` and `.ilike("title", ...)`.
 
-**Cambio de estado:** El dropdown ejecuta la Server Action `updateSuggestionStatus()`. La acción valida el nuevo estado contra el enum Zod `SuggestionStatus` antes de actualizar. RLS permite el UPDATE porque el usuario es miembro con rol `owner` o `admin`.
+**Status Change:** The dropdown fires the `updateSuggestionStatus()` Server Action. The action validates the new status against the Zod `SuggestionStatus` enum before updating. RLS allows the UPDATE because the user is a member with an `owner` or `admin` role.
 
-**Eliminar sugerencia:** Botón con confirmación en dos pasos (click → "Confirm" / "Cancel"). Ejecuta `deleteSuggestion()` que usa el server client autenticado. RLS permite el DELETE por la política `suggestions_authenticated_delete_own`.
+**Delete suggestion:** Button with two-step confirmation (click → "Confirm" / "Cancel"). Fires `deleteSuggestion()` which uses the authenticated server client. RLS allows the DELETE via the `suggestions_authenticated_delete_own` policy.
 
 ---
 
 ## 7. Server Actions
 
-Todas las mutaciones del dashboard se ejecutan como Server Actions de Next.js (`"use server"`).
+All dashboard mutations are executed as Next.js Server Actions (`"use server"`).
 
-### Proyectos (`projects/actions.ts`)
+### Projects (`projects/actions.ts`)
 
-| Action | Cliente | Auth check | Descripción |
+| Action | Client | Auth check | Description |
 |---|---|---|---|
-| `createProject()` | Admin (service role) | `requireAuth()` | Genera `hmac_secret`, inserta proyecto + membership |
-| `updateProject()` | Admin (service role) | `requireProjectAccess()` | Actualiza nombre del proyecto |
-| `deleteProject()` | Admin (service role) | `requireProjectAccess()` + `role === 'owner'` | Elimina proyecto (cascade) |
+| `createProject()` | Admin (service role) | `requireAuth()` | Generates `hmac_secret`, inserts project + membership |
+| `updateProject()` | Admin (service role) | `requireProjectAccess()` | Updates project name |
+| `deleteProject()` | Admin (service role) | `requireProjectAccess()` + `role === 'owner'` | Deletes project (cascaded) |
 
-### Moderación (`moderation/actions.ts`)
+### Moderation (`moderation/actions.ts`)
 
-| Action | Cliente | Auth check | Descripción |
+| Action | Client | Auth check | Description |
 |---|---|---|---|
-| `updateSuggestionStatus()` | Server (authenticated) | `requireProjectAccess()` | Valida status con Zod, actualiza via RLS |
-| `deleteSuggestion()` | Server (authenticated) | `requireProjectAccess()` | Elimina via RLS |
+| `updateSuggestionStatus()` | Server (authenticated) | `requireProjectAccess()` | Validates status with Zod, updates via RLS |
+| `deleteSuggestion()` | Server (authenticated) | `requireProjectAccess()` | Deletes via RLS |
 
-### Guards de autorización (`lib/auth-guard.ts`)
+### Authorization Guards (`lib/auth-guard.ts`)
 
 ```
 requireAuth()
-├── Obtiene sesión del usuario via cookies
-├── Valida que el usuario existe
-└── Retorna { supabase, user }
+├── Fetches user session via cookies
+├── Validates that the user exists
+└── Returns { supabase, user }
 
 requireProjectAccess(projectId)
-├── Llama a requireAuth()
-├── Consulta project_members con RLS
-│   (solo retorna filas donde user_id = auth.uid())
-├── Valida que existe membresía
-└── Retorna { supabase, user, role }
+├── Calls requireAuth()
+├── Queries project_members via RLS
+│   (only returns rows where user_id = auth.uid())
+├── Validates that a membership exists
+└── Returns { supabase, user, role }
 ```
 
 ---
 
-## 8. Sanitización de Errores
+## 8. Error Sanitization
 
-`lib/errors.ts` mapea errores de Supabase/PostgreSQL a mensajes genéricos. Nunca se expone `error.message` de Supabase al cliente.
+`lib/errors.ts` maps Supabase/PostgreSQL errors to generic messages. `error.message` from Supabase is never exposed to the client.
 
-| Código PostgreSQL | Mensaje al usuario |
+| PostgreSQL Code | End User Message |
 |---|---|
 | `23505` (unique violation) | "This record already exists." |
 | `23503` (FK violation) | "Referenced record not found." |
 | `42501` (insufficient privilege) | "You do not have permission to perform this action." |
 | `PGRST116` (not found) | "Record not found." |
-| Cualquier otro | "An unexpected error occurred." |
+| Any other | "An unexpected error occurred." |
 
 ---
 
-## 9. Configuración
+## 9. Configuration
 
-### Variables de entorno
+### Environment Variables
 
-| Variable | Dónde se usa | Descripción |
+| Variable | Scope | Description |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Browser + Server | URL del proyecto Supabase |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser + Server | Clave pública (RLS aplica) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Solo Server (admin client) | Clave privada (bypass RLS) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Browser + Server | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser + Server | Public key (RLS applies) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only (admin client) | Private key (bypasses RLS) |
 
-> **`SUPABASE_SERVICE_ROLE_KEY` no tiene prefijo `NEXT_PUBLIC_`** — nunca se expone al browser.
+> **`SUPABASE_SERVICE_ROLE_KEY` does not have the `NEXT_PUBLIC_` prefix** — it is never exposed to the browser.
 
-### Dependencias del workspace
+### Workspace Dependencies
 
-| Paquete | Uso |
+| Package | Usage |
 |---|---|
-| `@openfeedback/client` | `TABLE` constants, `SuggestionStatus` Zod enum, tipos |
-| `@openfeedback/typescript-config` | tsconfig base (`nextjs.json`) |
-| `@openfeedback/tailwind-config` | Preset con colores `of-primary` y `of-neutral` |
+| `@openfeedback/client` | `TABLE` constants, `SuggestionStatus` Zod enum, types |
+| `@openfeedback/typescript-config` | Base tsconfig (`nextjs.json`) |
+| `@openfeedback/tailwind-config` | Preset with `of-primary` and `of-neutral` colors |
 
 ---
 
-## 10. Setup para Desarrollo
+## 10. Development Setup
 
 ```bash
-# 1. Instalar dependencias (desde la raíz del monorepo)
+# 1. Install dependencies (from the monorepo root)
 pnpm install
 
-# 2. Configurar variables de entorno
+# 2. Configure environment variables
 cp apps/web-dashboard/.env.local.example apps/web-dashboard/.env.local
-# Editar .env.local con las credenciales de tu proyecto Supabase
+# Edit .env.local with your Supabase project credentials
 
-# 3. Aplicar la migración de project_members
-# (via Supabase CLI o dashboard SQL editor)
-# Archivo: supabase/migrations/20260219_project_members.sql
+# 3. Apply the project_members migration
+# (via Supabase CLI or the SQL editor in dashboard)
+# File: supabase/migrations/20260219_project_members.sql
 
-# 4. Crear un usuario admin en Supabase Auth
+# 4. Create an admin user in Supabase Auth
 # Via Supabase Dashboard → Authentication → Add User
 
-# 5. Iniciar el dashboard
+# 5. Start the dashboard
 pnpm --filter @openfeedback/web-dashboard dev
 # → http://localhost:3100
 
-# 6. Build de producción
+# 6. Production build
 pnpm --filter @openfeedback/web-dashboard build
 ```
 
 ---
 
-## 11. Relación con el Resto del Sistema
+## 11. Relationship with the Rest of the System
 
 ```
-                  Usuarios finales          Admins (dashboard)
+                  End Users                 Admins (dashboard)
                   ──────────────────        ──────────────────
-Autenticación     HMAC por request          Supabase Auth (sesión)
-Identidad en DB   user_hash (pseudo)        auth.users.id (real)
-Tabla de acceso   (ninguna)                 project_members
-Lectura           anon key + RLS público    authenticated + RLS por membresía
-Escritura         Edge Functions            Server Actions (service role / RLS)
+Authentication    HMAC per request          Supabase Auth (session)
+Identity in DB    user_hash (pseudo)        auth.users.id (real)
+Access Table      (none)                    project_members
+Read Access       anon key + public RLS     authenticated + RLS by membership
+Write Access      Edge Functions            Server Actions (service role / RLS)
                   (service role)
 ```
 
-El dashboard no interfiere con el flujo del SDK:
+The dashboard does not interfere with the SDK flow:
 
-- Los usuarios finales siguen creando sugerencias y votando vía Edge Functions con HMAC
-- Los admins gestionan estado y moderan vía Server Actions con Supabase Auth
-- Ambos caminos convergen en las mismas tablas PostgreSQL, protegidas por políticas RLS distintas para cada rol
+- End users continue creating suggestions and voting via Edge Functions with HMAC
+- Admins manage state and moderate via Server Actions using Supabase Auth
+- Both paths converge on the same PostgreSQL tables, protected by distinct RLS policies for each role

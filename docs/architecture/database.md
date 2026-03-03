@@ -1,11 +1,11 @@
-# Esquema de Base de Datos
+# Database Schema
 
-> Documentación completa del schema PostgreSQL, políticas RLS y triggers.
-> Migración: `supabase/migrations/20260217_init.sql`
+> Complete documentation of the PostgreSQL schema, RLS policies, and triggers.
+> Migration: `supabase/migrations/20260217_init.sql`
 
 ---
 
-## 1. Diagrama de Relaciones
+## 1. Relational Diagram
 
 ```
 ┌──────────────┐
@@ -39,32 +39,32 @@
 
 ---
 
-## 2. Tablas
+## 2. Tables
 
 ### 2.1 `projects`
 
-Configuración del tenant (la aplicación host que integra OpenFeedback).
+Tenant configuration (the host application integrating OpenFeedback).
 
-| Columna | Tipo | Restricciones | Descripción |
+| Column | Type | Constraints | Description |
 |---|---|---|---|
-| `id` | `uuid` | PK, default `gen_random_uuid()` | Identificador del proyecto |
-| `name` | `text` | NOT NULL | Nombre descriptivo |
-| `hmac_secret` | `text` | NOT NULL | Secreto compartido para verificación HMAC-SHA256. Nunca se expone al browser |
+| `id` | `uuid` | PK, default `gen_random_uuid()` | Project identifier |
+| `name` | `text` | NOT NULL | Descriptive name |
+| `hmac_secret` | `text` | NOT NULL | Shared secret for HMAC-SHA256 verification. Never exposed to the browser |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 | `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
 
 ### 2.2 `suggestions`
 
-El tablero de feedback público.
+The public feedback board.
 
-| Columna | Tipo | Restricciones | Descripción |
+| Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | `uuid` | PK, default `gen_random_uuid()` | |
 | `project_id` | `uuid` | FK → `projects(id)` ON DELETE CASCADE | |
-| `title` | `text` | NOT NULL, `char_length BETWEEN 1 AND 300` | Título de la sugerencia |
-| `description` | `text` | `char_length <= 5000` | Descripción opcional |
+| `title` | `text` | NOT NULL, `char_length BETWEEN 1 AND 300` | Suggestion title |
+| `description` | `text` | `char_length <= 5000` | Optional description |
 | `status` | `text` | NOT NULL, default `'open'`, CHECK enum | `open`, `planned`, `in_progress`, `shipped`, `closed` |
-| `upvotes` | `integer` | NOT NULL, default `0`, CHECK `>= 0` | Mantenido automáticamente por trigger |
+| `upvotes` | `integer` | NOT NULL, default `0`, CHECK `>= 0` | Maintained automatically by trigger |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 | `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
 
@@ -74,9 +74,9 @@ El tablero de feedback público.
 
 ### 2.3 `votes`
 
-Registro público de votos. Almacena `user_hash`, nunca el `user_id` original.
+Public vote ledger. Stores `user_hash`, never the original `user_id`.
 
-| Columna | Tipo | Restricciones | Descripción |
+| Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | `uuid` | PK, default `gen_random_uuid()` | |
 | `suggestion_id` | `uuid` | FK → `suggestions(id)` ON DELETE CASCADE | |
@@ -84,7 +84,7 @@ Registro público de votos. Almacena `user_hash`, nunca el `user_id` original.
 | `project_id` | `uuid` | FK → `projects(id)` ON DELETE CASCADE | |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
-**Unique constraint:** `uq_vote_per_user (suggestion_id, user_hash)` — un voto por usuario por sugerencia.
+**Unique constraint:** `uq_vote_per_user (suggestion_id, user_hash)` — one vote per user per suggestion.
 
 **Indexes:**
 - `idx_votes_suggestion` — `(suggestion_id)`
@@ -93,13 +93,13 @@ Registro público de votos. Almacena `user_hash`, nunca el `user_id` original.
 
 ### 2.4 `pseudonymous_vault`
 
-Almacén aislado de PII (Información Personal Identificable). Separado de `votes` por diseño.
+Isolated PII (Personally Identifiable Information) store. Separated from `votes` by design.
 
-| Columna | Tipo | Restricciones | Descripción |
+| Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | `uuid` | PK, default `gen_random_uuid()` | |
-| `user_hash` | `text` | NOT NULL | Mismo hash que en `votes` |
-| `encrypted_email` | `text` | NOT NULL | Email encriptado client-side |
+| `user_hash` | `text` | NOT NULL | Same hash as in `votes` |
+| `encrypted_email` | `text` | NOT NULL | Client-side encrypted email |
 | `project_id` | `uuid` | FK → `projects(id)` ON DELETE CASCADE | |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 
@@ -109,34 +109,34 @@ Almacén aislado de PII (Información Personal Identificable). Separado de `vote
 - `idx_vault_user_hash` — `(user_hash)`
 - `idx_vault_project` — `(project_id)`
 
-#### Por qué una tabla separada
+#### Why a separate table
 
-La separación entre `votes` y `pseudonymous_vault` es una decisión de privacidad deliberada:
+The separation between `votes` and `pseudonymous_vault` is a deliberate privacy decision:
 
-1. **`votes` es un registro público** — contiene `user_hash` + `suggestion_id`. Cualquiera puede leerlo.
-2. **`pseudonymous_vault` es privado** — mapea `user_hash` → `encrypted_email` para notificaciones "just-in-time".
-3. **Beneficios de la separación:**
-   - Controles de acceso más estrictos (ni `anon` ni `authenticated` pueden leer el vault)
-   - Purgar todo el PII con un solo `TRUNCATE pseudonymous_vault` sin afectar votos
-   - Auditar acceso al PII de forma independiente
-4. **El email está encriptado client-side** — incluso un dump de la base de datos no expone emails en texto plano.
+1. **`votes` is a public ledger** — entails `user_hash` + `suggestion_id`. Anyone can read it.
+2. **`pseudonymous_vault` is private** — maps `user_hash` → `encrypted_email` for "just-in-time" notifications.
+3. **Benefits of separation:**
+   - Stricter access controls (neither `anon` nor `authenticated` can read the vault)
+   - Purge all PII with a single `TRUNCATE pseudonymous_vault` without affecting votes
+   - Audit PII access independently
+4. **The email is encrypted client-side** — even a database dump does not expose plain text emails.
 
 ---
 
-## 3. Políticas RLS (Row Level Security)
+## 3. RLS Policies (Row Level Security)
 
-RLS está habilitado en las 4 tablas. Las políticas cubren explícitamente tanto `anon` como `authenticated`:
+RLS is enabled on all 4 tables. Policies explicitly cover both `anon` and `authenticated`:
 
 ### `projects`
 
-| Política | Rol | Operación | Regla | Razón |
+| Policy | Role | Operation | Rule | Reason |
 |---|---|---|---|---|
-| `projects_no_anon_access` | `anon` | ALL | `USING (false)` | El `hmac_secret` nunca debe ser legible |
-| `projects_no_authenticated_access` | `authenticated` | ALL | `USING (false)` | Solo `service_role` gestiona proyectos |
+| `projects_no_anon_access` | `anon` | ALL | `USING (false)` | The `hmac_secret` must never be readable |
+| `projects_no_authenticated_access` | `authenticated` | ALL | `USING (false)` | Only `service_role` manages projects |
 
 ### `suggestions`
 
-| Política | Rol | Operación | Regla |
+| Policy | Role | Operation | Rule |
 |---|---|---|---|
 | `suggestions_public_read` | `anon` | SELECT | `USING (true)` |
 | `suggestions_no_anon_write` | `anon` | INSERT | `WITH CHECK (false)` |
@@ -149,16 +149,16 @@ RLS está habilitado en las 4 tablas. Las políticas cubren explícitamente tant
 
 ### `votes`
 
-Misma estructura que `suggestions`: lectura pública, escritura denegada para ambos roles.
+Same structure as `suggestions`: public read, denied write for both roles.
 
 ### `pseudonymous_vault`
 
-| Política | Rol | Operación | Regla |
+| Policy | Role | Operation | Rule |
 |---|---|---|---|
 | `vault_no_anon_access` | `anon` | ALL | `USING (false)` |
 | `vault_no_authenticated_access` | `authenticated` | ALL | `USING (false)` |
 
-**Principio:** Solo el `service_role` (usado por Edge Functions) puede escribir en cualquier tabla. Solo `suggestions` y `votes` permiten lectura pública.
+**Principle:** Only the `service_role` (used by Edge Functions) can write to any table. Only `suggestions` and `votes` allow public reading.
 
 ---
 
@@ -166,19 +166,19 @@ Misma estructura que `suggestions`: lectura pública, escritura denegada para am
 
 ### `update_suggestion_upvotes()`
 
-Función `SECURITY DEFINER` que mantiene `suggestions.upvotes` sincronizado:
+`SECURITY DEFINER` function that keeps `suggestions.upvotes` synchronized:
 
-| Evento | Acción |
+| Event | Action |
 |---|---|
-| `AFTER INSERT ON votes` | `upvotes = upvotes + 1` en la sugerencia correspondiente |
-| `AFTER DELETE ON votes` | `upvotes = greatest(upvotes - 1, 0)` en la sugerencia correspondiente |
+| `AFTER INSERT ON votes` | `upvotes = upvotes + 1` in the corresponding suggestion |
+| `AFTER DELETE ON votes` | `upvotes = greatest(upvotes - 1, 0)` in the corresponding suggestion |
 
-Esto permite que las Edge Functions solo hagan `INSERT`/`DELETE` en `votes` — el contador se actualiza automáticamente.
+This allows Edge Functions to only `INSERT`/`DELETE` in `votes` — the counter updates automatically.
 
 ---
 
-## 5. Extensiones
+## 5. Extensions
 
-| Extensión | Uso |
+| Extension | Usage |
 |---|---|
-| `pgcrypto` | `gen_random_uuid()` para PKs |
+| `pgcrypto` | `gen_random_uuid()` for PKs |

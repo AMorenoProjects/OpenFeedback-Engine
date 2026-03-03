@@ -1,62 +1,62 @@
-# Autorización via Proxy (DX Improvement)
+# Proxy Authorization (DX Improvement)
 
-> Documentación sobre el modelo actual de integración "Plug & Play" mediante Route Handlers en Next.js.
+> Documentation on the current "Plug & Play" integration model via Next.js Route Handlers.
 
-## Evolución de la Integración (DX)
+## Evolution of the Integration (DX)
 
-Originalmente, OpenFeedback obligaba al desarrollador a crear Server Actions personalizadas que importaban funciones criptográficas (`signRequestBody`, `generateNonce`) de `@openfeedback/client/server`. Esto requería un conocimiento profundo del modelo "Signed Stateless Auth" y exponía una superficie de error propensa a vulnerabilidades (como el Oracle Attack, donde un endpoint genérico mal configurado permitía a un usuario falsificar votos).
+Originally, OpenFeedback required the developer to create custom Server Actions that imported cryptographic functions (`signRequestBody`, `generateNonce`) from `@openfeedback/client/server`. This required deep knowledge of the "Signed Stateless Auth" model and exposed an error surface susceptible to vulnerabilities (such as the Oracle Attack, where a generic misconfigured endpoint allowed a user to forge votes).
 
-Para resolver esto y cumplir con la regla de oro de **menos de 10 líneas de código para la integración**, introdujimos el patrón de **Proxy Route Handler** (`@openfeedback/client/next`).
+To solve this and achieve the golden rule of **less than 10 lines of code for integration**, we introduced the **Proxy Route Handler** pattern (`@openfeedback/client/next`).
 
-## ¿Cómo funciona el Proxy?
+## How the Proxy works
 
-En lugar de delegar las operaciones criptográficas al código del host app manual, el SDK exporta un manipulador de rutas completo para Next.js (App Router).
+Instead of delegating cryptographic operations to the manual host app code, the SDK exports a complete route handler for Next.js (App Router).
 
-### El flujo actual es el siguiente:
+### The current flow is as follows:
 
-1. **El Componente React pide una acción**
-   Hooks como `useVote` ya no generan requerimientos criptográficos. Simplemente hacen un `POST` en crudo internamente (e.g. hacia `/api/openfeedback`) con la acción (`vote`) y el payload.
+1. **The React Component requests an action**
+   Hooks like `useVote` no longer generate cryptographic requirements. They simply make a raw `POST` internally (e.g. to `/api/openfeedback`) with the action (`vote`) and the payload.
    
-2. **El Proxy Intercepta**
-   El Route Handler construido con `OpenFeedbackProxy` recibe la petición en el backend del cliente.
+2. **The Proxy Intercepts**
+   The Route Handler built with `OpenFeedbackProxy` receives the request in the client backend.
    
-3. **Resolución de Identidad (Zero Trust Client)**
-   El Proxy invoca la función `getUser()` definida por el desarrollador para leer las cookies HTTP/sesión reales (ej. la sesión de NextAuth) y extraer de forma segura el `user_id`. Nunca confía en un `user_id` enviado por el navegador para propósitos de autoría.
+3. **Identity Resolution (Zero Trust Client)**
+   The Proxy invokes the `getUser()` function defined by the developer to read the real HTTP cookies/session (e.g. the NextAuth session) and securely extract the `user_id`. It never trusts a `user_id` sent by the browser for authoring purposes.
    
-4. **Firma y Reenvío**
-   Si el usuario está autenticado, el Proxy genera un `nonce` y `timestamp` localmente, crea el objeto `auth` combinándolo con el `user_id`, aplica la firma usando `OPENFEEDBACK_HMAC_SECRET`, y retransmite (proxy) la solicitud final hacia el Edge Function de Supabase (`submit-vote` o `submit-suggestion`).
+4. **Signing and Forwarding**
+   If the user is authenticated, the Proxy generates a `nonce` and `timestamp` locally, creates the `auth` object by combining it with the `user_id`, applies the signature using `OPENFEEDBACK_HMAC_SECRET`, and forwards (proxies) the final request to the Supabase Edge Function (`submit-vote` or `submit-suggestion`).
 
-## Ventajas de Arquitectura
+## Architectural Advantages
 
-- **Mitigación de Oracle Attack:** Es imposible que el cliente frontend falsifique la identidad, ya que el payload enviado a Supabase contiene un `user_id` inyectado 100% en el servidor mediante sesiones seguras del host.
-- **Zero Crypto:** Los desarrolladores no ven hashes, firmas o nonces. Solo proveen su secreto como variable de entorno al inicializar el handler.
-- **Transparencia:** Para el navegador, parece que simplemente está interactuando con una API REST normal `/api/openfeedback`. Todo el "Stateless Signed Auth" que va hacia el OpenFeedback Engine de fondo es invisible.
+- **Oracle Attack Mitigation:** It's impossible for the frontend client to forge the identity, since the payload sent to Supabase contains a `user_id` injected 100% on the server via secure host sessions.
+- **Zero Crypto:** Developers don't see hashes, signatures, or nonces. They only provide their secret as an environment variable when initializing the handler.
+- **Transparency:** To the browser, it looks like it's simply interacting with a normal REST API `/api/openfeedback`. All the "Stateless Signed Auth" going to the background OpenFeedback Engine is invisible.
 
-## Migración: API de Hooks (antes vs. ahora)
+## Migration: Hooks API (before vs. now)
 
-Con la introducción del Proxy, la firma de los hooks cambió para eliminar los parámetros criptográficos que el desarrollador tenía que pasar manualmente.
+With the introduction of the Proxy, the signature of the hooks changed to remove the cryptographic parameters that the developer had to pass manually.
 
-### Antes (pre-Proxy, deprecado)
+### Before (pre-Proxy, deprecated)
 
 ```tsx
-// El desarrollador debía generar y pasar signature, nonce y timestamp
+// Developers had to generate and pass signature, nonce, and timestamp
 const { vote } = useVote();
 await vote(suggestionId, "up", { signature, nonce, timestamp });
 ```
 
-### Ahora (con Proxy Route Handler)
+### Now (with Proxy Route Handler)
 
 ```tsx
-// La criptografía es transparente — el Proxy la maneja server-side
+// Cryptography is transparent — the Proxy handles it server-side
 const { vote, isVotingOn } = useVote();
 await vote(suggestionId, "up");
 ```
 
-| Hook                   | Parámetros criptográficos | Notas                                      |
-| ---------------------- | ------------------------- | ------------------------------------------ |
-| `useVote`              | Eliminados                | Solo `(suggestionId, direction)`.          |
-| `useSubmitSuggestion`  | Eliminados                | Solo `{ title, description }`.             |
-| `useSuggestions`       | Nunca los tuvo            | Lectura pública, sin autenticación.        |
-| `useSearchSuggestions` | Nunca los tuvo            | Filtrado client-side sobre datos públicos. |
+| Hook                   | Cryptographic Parameters | Notes                                      |
+| ---------------------- | ------------------------ | ------------------------------------------ |
+| `useVote`              | Removed                  | Only `(suggestionId, direction)`.          |
+| `useSubmitSuggestion`  | Removed                  | Only `{ title, description }`.             |
+| `useSuggestions`       | Never had them           | Public read, without authentication.       |
+| `useSearchSuggestions` | Never had them           | Client-side filtering on public data.      |
 
-> **Nota:** Si encuentras ejemplos antiguos que pasan `{ signature, nonce, timestamp }` a un hook, son obsoletos. La API actual no acepta esos parámetros — toda la autenticación ocurre de forma transparente en el Proxy Route Handler.
+> **Note:** If you find old examples passing `{ signature, nonce, timestamp }` to a hook, they are obsolete. The current API does not accept those parameters — all authentication happens transparently in the Proxy Route Handler.

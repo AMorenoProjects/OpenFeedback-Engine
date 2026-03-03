@@ -1,76 +1,76 @@
 # OpenFeedback Engine: Project Blueprint
 
-> **Tagline:** La infraestructura de feedback "Headless" para el ecosistema moderno de Next.js.
+> **Tagline:** The "Headless" feedback infrastructure for the modern Next.js ecosystem.
 > **Version:** 2.0.0
-> **Estado:** Fase 2 completada — Core Engine implementado
-> **Licencia:** MIT (Core) / Comercial (Managed Services)
+> **Status:** Phase 2 completed — Core Engine implemented
+> **License:** MIT (Core) / Commercial (Managed Services)
 
 ---
 
-## 1. Resumen Ejecutivo
+## 1. Executive Summary
 
-**OpenFeedback Engine** no es otro portal de feedback. Es una infraestructura de codigo abierto disenada para desarrolladores que desean integrar la recoleccion de feedback, votaciones y roadmaps directamente en sus aplicaciones SaaS, sin sacrificar su identidad visual ni obligar a los usuarios a crear cuentas externas.
+**OpenFeedback Engine** is not just another feedback portal. It is an open-source infrastructure designed for developers who want to integrate feedback collection, voting, and roadmaps directly into their SaaS applications, without sacrificing their visual identity or forcing users to create external accounts.
 
-A diferencia de las soluciones monoliticas (Canny, Jira PD), OpenFeedback funciona como un conjunto de primitivas (SDKs y APIs) que se integran en el ciclo de vida de desarrollo (Git), automatizando la comunicacion con el usuario (Changelogs) y garantizando la soberania de los datos (GDPR-first).
+Unlike monolithic solutions (Canny, Jira PD), OpenFeedback works as a set of primitives (SDKs and APIs) that integrate into the development lifecycle (Git), automating user communication (Changelogs), and ensuring data sovereignty (GDPR-first).
 
-## 2. Analisis del Problema (The Pain)
+## 2. Problem Analysis (The Pain)
 
-Los fundadores de SaaS y desarrolladores Indie enfrentan un trilema con las herramientas actuales:
+SaaS founders and Indie developers face a trilemma with current tools:
 
-*   **Friccion de Usuario:** Herramientas externas requieren que el usuario se registre nuevamente para votar. Resultado: Baja participacion (<5% de los usuarios).
-*   **Incoherencia Visual:** Los "Feedback Boards" externos (iframe o subdominio) rompen la experiencia de usuario y la marca.
-*   **Sobrecosto y Riesgo de Privacidad:** Soluciones Enterprise son caras y centralizadas. Almacenar datos de usuarios europeos en servidores de terceros (EE. UU.) complica el cumplimiento del **GDPR**.
-*   **Desconexion del Flujo de Trabajo:** El feedback vive en un silo. Cerrar el ciclo ("Shipping it") depende de procesos manuales propensos al error humano.
+*   **User Friction:** External tools require the user to sign up again to vote. Result: Low participation (<5% of users).
+*   **Visual Inconsistency:** External "Feedback Boards" (iframe or subdomain) break the user experience and branding.
+*   **Overhead and Privacy Risk:** Enterprise solutions are expensive and centralized. Storing European users' data on third-party servers (USA) complicates **GDPR** compliance.
+*   **Workflow Disconnection:** Feedback lives in a silo. Closing the loop ("Shipping it") depends on manual processes prone to human error.
 
-## 3. La Solucion (The Gain)
+## 3. The Solution (The Gain)
 
-Un sistema **Headless** y **Self-Hosted** que vive dentro de tu aplicacion.
+A **Headless** and **Self-Hosted** system that lives inside your application.
 
-### Principios de Diseno
+### Design Principles
 
-1.  **Signed Stateless Auth:** Autenticacion criptografica sin estado. El backend valida firma HMAC-SHA256, timestamp y nonce (protegido por Set bounded en RAM con eviccion FIFO).
-2.  **Pseudonymous Vault:** Honestidad en privacidad. El voto es publico y anonimo; el email se guarda encriptado en una tabla aislada para notificaciones "Just-In-Time".
-3.  **Developer Experience (DX) Obsessive:** Disenado para Next.js (App Router, Server Actions). Se instala con `npm install @openfeedback/react @openfeedback/client`.
-4.  **Headless con Theme Opcional:** Funciona directo de la caja importando `@openfeedback/react/styles.css`. Personalizable, pero bonito por defecto.
-5.  **No-Black-Magic:** Nada de "Git-Write-Back" automaticos en CI. El desarrollador controla la sincronizacion con `openfeedback sync`.
+1.  **Signed Stateless Auth:** Cryptographic stateless authentication. The backend validates HMAC-SHA256 signature, timestamp, and nonce (protected by bounded Set in RAM with FIFO eviction).
+2.  **Pseudonymous Vault:** Honesty in privacy. The vote is public and anonymous; the email is saved encrypted in an isolated table for "Just-In-Time" notifications.
+3.  **Developer Experience (DX) Obsessive:** Designed for Next.js (App Router, Server Actions). Installed via `npm install @openfeedback/react @openfeedback/client`.
+4.  **Headless with Optional Theme:** Works out of the box by importing `@openfeedback/react/styles.css`. Customizable, but beautiful by default.
+5.  **No-Black-Magic:** No automatic "Git-Write-Backs" in CI. The developer controls the synchronization with `openfeedback sync`.
 
-## 4. Stack Tecnico
+## 4. Technical Stack
 
-### 4.1 Frontend (El SDK)
-*   **Lenguaje:** TypeScript (strict, sin `any`).
-*   **Framework Objetivo:** React 18/19, Next.js (App Router).
-*   **Empaquetado:** NPM Registry (`@openfeedback/react`, `@openfeedback/client`).
-*   **Build:** tsup (esbuild) — dual ESM/CJS con declaraciones de tipos.
-*   **Estilos:** Headless (sin estilos) + Tema opcional basado en Tailwind CSS y Radix UI.
-*   **Utilidades:** `clsx` + `tailwind-merge` para composicion de clases.
+### 4.1 Frontend (The SDK)
+*   **Language:** TypeScript (strict, no `any`).
+*   **Target Framework:** React 18/19, Next.js (App Router).
+*   **Packaging:** NPM Registry (`@openfeedback/react`, `@openfeedback/client`).
+*   **Build:** tsup (esbuild) — dual ESM/CJS with type declarations.
+*   **Styles:** Headless (no styles) + Optional theme based on Tailwind CSS and Radix UI.
+*   **Utilities:** `clsx` + `tailwind-merge` for class composition.
 
 ### 4.2 Backend (Supabase)
-*   **Base de Datos:** PostgreSQL via Supabase (con RLS habilitado en todas las tablas).
-*   **API de Lectura:** PostgREST (Supabase REST API con `anon key`).
-*   **API de Escritura:** Supabase Edge Functions (Deno runtime, `service role`).
-*   **Seguridad:** Validacion HMAC-SHA256 en Edge Functions. User IDs hasheados con salt per-project. Comparacion constant-time.
-*   **Privacidad:** Pseudonymous Vault — tabla aislada de PII con emails encriptados client-side.
+*   **Database:** PostgreSQL via Supabase (with RLS enabled on all tables).
+*   **Read API:** PostgREST (Supabase REST API with `anon key`).
+*   **Write API:** Supabase Edge Functions (Deno runtime, `service role`).
+*   **Security:** HMAC-SHA256 validation in Edge Functions. User IDs hashed with per-project salt. Constant-time comparison.
+*   **Privacy:** Pseudonymous Vault — isolated PII table with client-side encrypted emails.
 
 ### 4.3 DevOps & CLI
-*   **Herramienta:** `@openfeedback/cli` (Node.js, skeleton implementado).
-*   **Funcion planificada:** Analisis de historial Git con Fuzzy Matching, generacion de changelog, `openfeedback sync`.
+*   **Tool:** `@openfeedback/cli` (Node.js, skeleton implemented).
+*   **Planned feature:** Git history analysis with Fuzzy Matching, changelog generation, `openfeedback sync`.
 
 ### 4.4 Monorepo
 *   **Workspaces:** pnpm 9.x
-*   **Orquestacion:** Turborepo con cache incremental
-*   **Configs compartidas:** `@openfeedback/typescript-config`, `@openfeedback/tailwind-config`
+*   **Orchestration:** Turborepo with incremental cache
+*   **Shared Configs:** `@openfeedback/typescript-config`, `@openfeedback/tailwind-config`
 
-## 5. Arquitectura de Modulos
+## 5. Module Architecture
 
-### Modulo A: SDK de Autenticacion Transparente (Implementado)
+### Module A: Transparent Auth SDK (Implemented)
 
-El componente `<OpenFeedbackProvider>` inyecta el contexto de auth y el cliente API.
+The `<OpenFeedbackProvider>` component injects the auth context and API client.
 
 ```tsx
-// La firma se computa server-side en un Server Action
+// The signature is computed server-side in a Server Action
 const { signature, auth } = await signVoteRequest(userId, suggestionId, "up");
 
-// El Provider recibe el auth context pre-firmado
+// The Provider receives the pre-signed auth context
 <OpenFeedbackProvider
   config={{ projectId: "...", apiUrl: "https://..." }}
   anonKey="sb-anon-key"
@@ -85,112 +85,112 @@ const { signature, auth } = await signVoteRequest(userId, suggestionId, "up");
 </OpenFeedbackProvider>
 ```
 
-### Modulo B: Hooks Headless (Implementado)
+### Module B: Headless Hooks (Implemented)
 
-Hooks para control total de la UI:
+Hooks for complete UI control:
 
-*   `useSuggestions(options?)`: Fetch de lista con filtrado y orden.
-*   `useVote()`: Votar/desvotar con firma server-side.
-*   `useSubmitSuggestion()`: Crear nuevo feedback con firma server-side.
+*   `useSuggestions(options?)`: Fetch list with filtering and ordering.
+*   `useVote()`: Vote/unvote with server-side signature.
+*   `useSubmitSuggestion()`: Create new feedback with server-side signature.
 
-### Modulo C: Generador de Changelog (Planificado)
+### Module C: Changelog Generator (Planned)
 
-Un pipeline que conecta el codigo con el feedback:
+A pipeline connecting your code with feedback:
 
-1.  Dev hace commit: `feat: allow png export`.
-2.  CI detecta coincidencia difusa con Sugerencia #45 "Export to PNG". Bot comenta PR: "Cierra esto #45?". Dev confirma.
-3.  CI/CD ejecuta `openfeedback release`.
-4.  Sistema marca #45 como "Shipped" y desencripta emails temporalmente para notificar.
+1.  Dev commits: `feat: allow png export`.
+2.  CI detects fuzzy match with Suggestion #45 "Export to PNG". Bot comments on PR: "Closes #45?". Dev confirms.
+3.  CI/CD runs `openfeedback release`.
+4.  System marks #45 as "Shipped" and decrypts emails temporarily to notify.
 
-### Modulo D: Roadmap as Code (Planificado)
+### Module D: Roadmap as Code (Planned)
 
-La verdad sobre el roadmap vive en el repositorio, no en una base de datos opaca:
+The truth about the roadmap lives in the repository, not in an opaque database:
 
-1.  Crea `ROADMAP.md` en tu repo usando formato "Anchor-based": `- [ ] Feature Name <!-- id: 123 -->`.
-2.  Ejecuta `npx openfeedback sync` localmente.
-3.  TU haces el commit. Cero sorpresas en CI. Control total.
+1.  Create `ROADMAP.md` in your repo using "Anchor-based" format: `- [ ] Feature Name <!-- id: 123 -->`.
+2.  Run `npx openfeedback sync` locally.
+3.  YOU commit. Zero surprises in CI. Complete control.
 
-## 6. Estrategia de Mercado (Go-to-Market)
+## 6. Go-to-Market Strategy
 
-### Vector de Entrada: Nicho Next.js
-No competimos contra Canny en general. Competimos por ser la opcion por defecto en el ecosistema Next.js / Vercel.
+### Entry Vector: Next.js Niche
+We are not competing against Canny in general. We are competing to be the default choice in the Next.js / Vercel ecosystem.
 
-*   **Tactica:** Crear "Starters" y "Boilerplates" de SaaS que ya incluyan OpenFeedback pre-instalado.
+*   **Tactic:** Create "Starters" and "Boilerplates" for SaaS that already include OpenFeedback pre-installed.
 
-### Diferenciador: Privacidad Honesta (GDPR)
-Nada de promesas falsas de "Zero-Knowledge" que rompen funcionalidades. Ofrecemos **Pseudonimato Auditable**: los votos no estan vinculados publicamente a identidades, pero el administrador mantiene la capacidad tecnica (encriptada) de contactar usuarios.
+### Differentiator: Honest Privacy (GDPR)
+No fake "Zero-Knowledge" promises that break functionalities. We offer **Auditable Pseudonymity**: votes are not publicly linked to identities, but the administrator retains the (encrypted) technical capability to contact users.
 
-### Modelo de Negocio (Open Core)
-*   **Self-Hosted Standard:** Gratis y de codigo abierto.
-*   **Enterprise Support:** Contratos de soporte y auditoria para grandes volumenes.
+### Business Model (Open Core)
+*   **Self-Hosted Standard:** Free and open source.
+*   **Enterprise Support:** Support contracts and auditing for large volumes.
 
-## 7. Roadmap de Desarrollo
+## 7. Development Roadmap
 
-### Fase 1: Scaffold (Completada)
-*   **Entregable:** Monorepo con pnpm + Turborepo, configs compartidas, skeleton de todos los paquetes.
-*   **Estado:** Build funcional de `@openfeedback/client`, `@openfeedback/react`, `@openfeedback/cli`.
+### Phase 1: Scaffold (Completed)
+*   **Deliverable:** Monorepo with pnpm + Turborepo, shared configs, skeleton for all packages.
+*   **Status:** Working build of `@openfeedback/client`, `@openfeedback/react`, `@openfeedback/cli`.
 
-### Fase 2: Core Engine (Completada)
-*   **Entregable:** Schema PostgreSQL + RLS, Edge Functions (submit-vote, submit-suggestion), API Client, React Hooks.
-*   **Auditoria de seguridad:** 9 vulnerabilidades identificadas y corregidas (timing attacks, unsigned vote payload, unsalted hashes, unbounded nonce store, missing CORS, leaked DB errors, missing runtime validation, duplicate types, missing authenticated-role RLS).
+### Phase 2: Core Engine (Completed)
+*   **Deliverable:** PostgreSQL Schema + RLS, Edge Functions (submit-vote, submit-suggestion), API Client, React Hooks.
+*   **Security audit:** 9 vulnerabilities identified and fixed (timing attacks, unsigned vote payload, unsalted hashes, unbounded nonce store, missing CORS, leaked DB errors, missing runtime validation, duplicate types, missing authenticated-role RLS).
 
-### Fase 3: Demo App (Completada)
-*   **Objetivo:** App Next.js funcional que demuestre el SDK end-to-end.
-*   **Entregable:** `apps/demo-app` con Server Actions, Provider, y componentes usando los 3 hooks.
+### Phase 3: Demo App (Completed)
+*   **Objective:** Functional Next.js app to demonstrate the SDK end-to-end.
+*   **Deliverable:** `apps/demo-app` with Server Actions, Provider, and components using the 3 hooks.
 
-### Fase 4: CLI & Changelog (Completada)
-*   **Objetivo:** CLI funcional para generacion de changelogs.
-*   **Entregable:** `openfeedback-changelog-action` para GitHub Marketplace lista para su uso. Comando CLI preparado para CI/CD.
+### Phase 4: CLI & Changelog (Completed)
+*   **Objective:** Functional CLI for changelog generation.
+*   **Deliverable:** `openfeedback-changelog-action` for GitHub Marketplace ready to use. CLI command ready for CI/CD.
 
-### Fase 5: Ecosistema y Estabilidad (Completada)
-*   **Objetivo:** Robustez y extensibilidad.
-*   **Entregable:** Webhooks salientes e integracion Slack/Discord. (Nota: La extensibilidad del "Sistema de Plugins" se satisface de manera Headless y segura a través de los webhooks, delegando la lógica a los consumidores).
+### Phase 5: Ecosystem and Stability (Completed)
+*   **Objective:** Robustness and extensibility.
+*   **Deliverable:** Outbound webhooks and Slack/Discord integration. (Note: Extensibility of the "Plugin System" is satisfied effectively and securely via webhooks, delegating the logic to consumers).
 
-## 8. Estructura de Repositorio (Actual)
+## 8. Repository Structure (Current)
 
 ```text
 /
 ├── apps/
-│   ├── web-dashboard/          # Panel admin (placeholder)
-│   ├── docs/                   # Documentacion (placeholder)
-│   └── demo-app/               # App Next.js de ejemplo (placeholder)
+│   ├── web-dashboard/          # Admin panel (placeholder)
+│   ├── docs/                   # Documentation (placeholder)
+│   └── demo-app/               # Next.js example app (placeholder)
 │
 ├── packages/
-│   ├── react/                  # SDK React — Provider, Hooks, cn()
-│   ├── client/                 # Cliente JS — Schemas, API Client, Signing
+│   ├── react/                  # React SDK — Provider, Hooks, cn()
+│   ├── client/                 # JS Client — Schemas, API Client, Signing
 │   ├── cli/                    # CLI (skeleton)
-│   ├── typescript-config/      # TSConfigs compartidos
-│   └── tailwind-config/        # Preset Tailwind compartido
+│   ├── typescript-config/      # Shared TSConfigs
+│   └── tailwind-config/        # Shared Tailwind preset
 │
 ├── supabase/
-│   ├── migrations/             # Schema SQL + RLS + Triggers
+│   ├── migrations/             # SQL Schema + RLS + Triggers
 │   └── functions/
 │       ├── _shared/            # Auth, Crypto, CORS, Validation
-│       ├── submit-vote/        # Edge Function: votar
-│       └── submit-suggestion/  # Edge Function: crear sugerencia
+│       ├── submit-vote/        # Edge Function: vote
+│       └── submit-suggestion/  # Edge Function: create suggestion
 │
 ├── docker/                     # Self-Hosting (placeholder)
-└── docs/                       # Documentacion del proyecto
-    ├── blueprint.md            # Este archivo (Vision y Arquitectura)
+└── docs/                       # Project documentation
+    ├── blueprint.md            # This file (Vision and Architecture)
     ├── architecture/
-    │   ├── overview.md         # Arquitectura del sistema
-    │   ├── database.md         # Schema de base de datos
-    │   ├── security.md         # Modelo de seguridad
-    │   └── Diagramas/          # SVG Auth Flow
+    │   ├── overview.md         # System architecture
+    │   ├── database.md         # Database schema
+    │   ├── security.md         # Security model
+    │   └── Diagramas/          # Auth Flow SVG
     ├── guides/                 
-    │   ├── integration.md      # Guia de integracion del SDK
-    │   └── web-dashboard.md    # Manual del panel de administracion
+    │   ├── integration.md      # SDK integration guide
+    │   └── web-dashboard.md    # Admin Dashboard manual
     └── strategy/               
-        ├── analisis-estrategico.md # Analisis del nicho de mercado
-        └── launch-copy.md      # Textos para lanzamiento
+        ├── analisis-estrategico.md # Niche market analysis
+        └── launch-copy.md      # Launch copy texts
 
-## 9. Documentacion Adicional
+## 9. Additional Documentation
 
-| Documento | Contenido |
+| Document | Content |
 |---|---|
-| [architecture/overview.md](./architecture/overview.md) | Vista general, estructura del monorepo, flujo de datos, responsabilidades de paquetes |
-| [architecture/database.md](./architecture/database.md) | Tablas, RLS, triggers, diseño del Pseudonymous Vault |
-| [architecture/security.md](./architecture/security.md) | Signed Stateless Auth, HMAC, nonces, timing-safe, invariantes de seguridad |
-| [guides/integration.md](./guides/integration.md) | Guia paso a paso para integrar en Next.js con ejemplos de codigo |
-| [guides/web-dashboard.md](./guides/web-dashboard.md) | Configuracion y manejo del Admin Dashboard |
-| [architecture/Diagramas/](./architecture/Diagramas/) | Diagramas visuales de autenticacion y vault |
+| [architecture/overview.md](./architecture/overview.md) | Overview, monorepo structure, data flow, package responsibilities |
+| [architecture/database.md](./architecture/database.md) | Tables, RLS, triggers, Pseudonymous Vault design |
+| [architecture/security.md](./architecture/security.md) | Signed Stateless Auth, HMAC, nonces, timing-safe, security invariants |
+| [guides/integration.md](./guides/integration.md) | Step-by-step guide to integrate in Next.js with code examples |
+| [guides/web-dashboard.md](./guides/web-dashboard.md) | Admin Dashboard setup and management |
+| [architecture/Diagramas/](./architecture/Diagramas/) | Visual diagrams of auth and vault |

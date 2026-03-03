@@ -1,10 +1,10 @@
-# Optimistic Voting y Anti-spam
+# Optimistic Voting and Anti-spam
 
-> Desde v2.1, `useVote` aplica actualizaciones optimistas, rollback automático y protección anti-spam por sugerencia.
+> Since v2.1, `useVote` applies immediate optimistic updates, automatic rollback, and per-suggestion anti-spam protection.
 
 ---
 
-## Cambios en la API
+## API Changes
 
 ### `useVote()`
 
@@ -12,51 +12,51 @@
 const { vote, isLoading, isVotingOn, error } = useVote();
 ```
 
-| Campo        | Tipo                                  | Descripción                                              |
+| Field        | Type                                  | Description                                              |
 | ------------ | ------------------------------------- | -------------------------------------------------------- |
-| `vote`       | `(id, direction) => Promise<Result>`  | Lanza el voto con update optimista inmediato.            |
-| `isLoading`  | `boolean`                             | `true` si **cualquier** voto está en vuelo (backward compat). |
-| `isVotingOn` | `(id: string) => boolean`             | Estado de carga **por sugerencia**.                      |
-| `error`      | `Error \| null`                       | Último error producido.                                  |
+| `vote`       | `(id, direction) => Promise<Result>`  | Fires the vote with an immediate optimistic update.      |
+| `isLoading`  | `boolean`                             | `true` if **any** vote is en route (backward compat).    |
+| `isVotingOn` | `(id: string) => boolean`             | Loading state **per suggestion**.                        |
+| `error`      | `Error \| null`                       | Last produced error.                                     |
 
-### Resultado de `vote()`
+### Result of `vote()`
 
-| `action`      | Significado                                                        |
+| `action`      | Meaning                                                            |
 | ------------- | ------------------------------------------------------------------ |
-| `"voted"`     | Voto registrado con éxito en el servidor.                          |
-| `"removed"`   | Voto eliminado con éxito.                                          |
-| `"throttled"` | Se ignoró porque ya hay un voto en vuelo para esa misma sugerencia.|
+| `"voted"`     | Vote successfully registered on the server.                        |
+| `"removed"`   | Vote successfully removed.                                         |
+| `"throttled"` | Ignored because there is already a vote en route for that suggestion.|
 
 ---
 
-## Comportamiento
+## Behavior
 
 ### Optimistic Update
 
-Al llamar a `vote(id, "up")`, el contador `upvotes` de esa sugerencia se incrementa **inmediatamente** en la UI, antes de que el servidor responda. Para `"remove"`, se decrementa (mínimo 0).
+When calling `vote(id, "up")`, the `upvotes` counter for that suggestion increments **immediately** in the UI, before the server replies. For `"remove"`, it decrements (minimum 0).
 
-Esto funciona a través de un sistema pub/sub interno en `OpenFeedbackProvider` que conecta `useVote` con `useSuggestions` sin acoplarlos directamente.
+This works through an internal pub/sub system in `OpenFeedbackProvider` that connects `useVote` with `useSuggestions` without coupling them directly.
 
-### Rollback automático
+### Automatic Rollback
 
-Si la petición al servidor falla, el delta optimista se revierte automáticamente:
+If the request to the server fails, the optimistic delta is automatically reverted:
 
 ```
-vote("up") → upvotes + 1 → servidor falla → upvotes - 1
-vote("remove") → upvotes - 1 → servidor falla → upvotes + 1
+vote("up") → upvotes + 1 → server fails → upvotes - 1
+vote("remove") → upvotes - 1 → server fails → upvotes + 1
 ```
 
-El error se expone en `error` y también se lanza como excepción.
+The error is exposed in `error` and is also thrown as an exception.
 
 ### Anti-spam (per-suggestion lock)
 
-Si el usuario hace clic repetidamente en el mismo botón de voto mientras hay una petición en vuelo, las llamadas extra se resuelven inmediatamente con `{ ok: true, action: "throttled" }` sin generar peticiones adicionales al servidor.
+If the user clicks repeatedly on the same vote button while there is a request en route, the extra calls are resolved immediately with `{ ok: true, action: "throttled" }` without generating additional server requests.
 
-Votos en **distintas** sugerencias funcionan en paralelo sin bloqueo.
+Votes on **different** suggestions run in parallel without blocking.
 
 ---
 
-## Ejemplo de uso
+## Usage Example
 
 ```tsx
 function VoteButton({ suggestion }: { suggestion: Suggestion }) {
@@ -67,9 +67,9 @@ function VoteButton({ suggestion }: { suggestion: Suggestion }) {
     try {
       const result = await vote(suggestion.id, "up");
       if (result.action === "throttled") return;
-      // Voto exitoso — la UI ya se actualizó optimistamente
+      // Successful vote — the UI is already optimistically updated
     } catch {
-      // Rollback ya ocurrió — opcionalmente mostrar toast de error
+      // Rollback already occurred — optionally display an error toast
     }
   };
 
@@ -83,17 +83,17 @@ function VoteButton({ suggestion }: { suggestion: Suggestion }) {
 
 ---
 
-## Arquitectura interna
+## Internal Architecture
 
 ```
 useVote                        OpenFeedbackProvider                useSuggestions
   │                                   │                                │
   │── emitSuggestionUpdate(id, +1) ──▶│── broadcast ──────────────────▶│ setSuggestions()
   │                                   │                                │
-  │── fetch(proxyUrl) ───────────────▶│ (servidor)                     │
+  │── fetch(proxyUrl) ───────────────▶│ (server)                       │
   │                                   │                                │
   │◀── error ─────────────────────────│                                │
   │── emitSuggestionUpdate(id, -1) ──▶│── broadcast (rollback) ───────▶│ setSuggestions()
 ```
 
-El Provider mantiene un `Set<Callback>` en un `useRef` para evitar re-renders innecesarios al registrar/desregistrar listeners.
+The Provider maintains a `Set<Callback>` on a `useRef` to avoid unnecessary re-renders when registering/unregistering listeners.

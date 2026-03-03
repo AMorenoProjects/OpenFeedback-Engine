@@ -1,280 +1,213 @@
 # OpenFeedback Engine
 
-**Headless, self-hosted feedback infrastructure for Next.js SaaS applications.**
+**The ultimate zero-friction, headless feedback infrastructure for Next.js SaaS applications.**
 
-Embed feedback collection, voting, and roadmaps directly into your app. No external portals. No extra user accounts. Your users stay in your product.
+![Demo](./demo.gif)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org/)
-[![Supabase](https://img.shields.io/badge/Supabase-Backend-green)](https://supabase.com/)
+Embed a complete feedback board, voting system, and roadmap directly into your product. Your users never leave your app, never see magic links, and never need a separate account!
 
----
+## ✨ Features
 
-## Features
-
-- **Zero-Friction Feedback** &mdash; Users vote and suggest without leaving your app. No magic links, no separate accounts.
-- **Signed Stateless Auth** &mdash; Every write operation is secured with HMAC-SHA256 signatures. No session storage. Nonce + timestamp prevent replay attacks.
-- **Pseudonymous Vault** &mdash; Public votes are anonymous. Emails are encrypted in an isolated table, decrypted only for just-in-time notifications. GDPR-compliant by design.
-- **Headless Components** &mdash; Shadcn-style primitives that accept `className` props and merge via `cn()`. Use the default theme or bring your own.
-- **Reactive Search** &mdash; `SuggestionSearch` component with debounced client-side filtering. Users discover existing ideas before creating duplicates.
-- **Trust Micro-Copy** &mdash; `TrustBadge` shows masked email (`j***o@gmail.com`) with a lock icon to signal privacy.
-- **Roadmap as Code** &mdash; Manage suggestion statuses from a `ROADMAP.md` file. `openfeedback sync` pushes changes to the database.
-- **Self-Hosted** &mdash; Runs on your own Supabase instance with Row Level Security enabled. You own the data.
+- **Zero-Friction for Users:** Your users vote and suggest features directly using their existing session in your app. No logins or third-party portals.
+- **Headless & Customizable:** Ship with your own UI. We provide the React hooks and context; you bring your Tailwind classes or UI libraries.
+- **Supabase Self-Hosted:** You own your data. Runs entirely on your own Supabase instance with Row Level Security.
+- **"Zero Crypto" Developer Experience:** Cryptography (HMAC signing) is handled seamlessly on your server via a simple Next.js Proxy Route. No complex crypto logic required on the client!
+- **Privacy-First:** User votes are mathematically hashed. Emails are encrypted in a dedicated vault for GDPR compliance.
 
 ---
 
-## Prerequisites
+## 🚀 Get Started in 5 Minutes
 
-| Tool | Version |
-|------|---------|
-| **Node.js** | >= 20 |
-| **pnpm** | >= 9 |
-| **Supabase Project** | With Edge Functions enabled |
+### Step 1: Supabase Setup
 
----
+OpenFeedback runs on your own Supabase database. Let's initialize it:
 
-## Installation
+1. Create a new project in the [Supabase Dashboard](https://supabase.com/dashboard).
+2. Go to the **SQL Editor** on the left sidebar.
+3. Copy the contents of [`supabase/00_init.sql`](./supabase/00_init.sql) and click **Run**. This creates all necessary tables, indexes, and security policies.
+4. Now, run this small snippet to create your first OpenFeedback project and generate your credentials:
 
-### As an SDK consumer (your Next.js app)
+```sql
+insert into projects (name, hmac_secret)
+-- Make sure to replace this secret with your own randomly generated one!
+values ('My Awesome SaaS', 'replace-this-with-a-random-32-char-secret-string')
+returning id;
+```
+
+> **IMPORTANT:** Save the `id` returned by this query! That is your `OpenFeedback Project ID`.
+
+### Step 2: Installation
+
+Install the OpenFeedback packages in your Next.js application:
 
 ```bash
 pnpm add @openfeedback/react @openfeedback/client
+# or use npm/yarn
 ```
 
-### For local development of the engine itself
+### Step 3: Environment Variables
 
-```bash
-git clone https://github.com/your-org/openfeedback-engine.git
-cd openfeedback-engine
-pnpm install
-pnpm build
-```
+Create or update your `.env.local` file with the keys from your Supabase project (Dashboard -> Settings -> API) and the `id`/secret you created in Step 1.
 
----
-
-## Configuration (Environment Variables)
-
-Your Next.js app needs these variables. Create a `.env.local` file:
-
-```bash
-# Public (exposed to the browser)
+```env
+# Public Supabase keys (Safe to expose to the browser)
 NEXT_PUBLIC_SUPABASE_URL="https://<your-project>.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJhbGci..."
-NEXT_PUBLIC_OPENFEEDBACK_PROJECT_ID="a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
-# Server-only (NEVER expose to the client)
-OPENFEEDBACK_HMAC_SECRET="your-project-hmac-secret"
+# OpenFeedback specific (Safe to expose to the browser)
+NEXT_PUBLIC_OPENFEEDBACK_PROJECT_ID="<the-uuid-id-returned-in-step-1>"
+
+# Server-only HMAC Secret (NEVER expose this to the browser!)
+OPENFEEDBACK_HMAC_SECRET="replace-this-with-a-random-32-char-secret-string"
 ```
 
-| Variable | Scope | Description |
-|----------|-------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Client + Server | Base URL of your Supabase project |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client + Server | Supabase anon key (JWT) for public reads via PostgREST |
-| `NEXT_PUBLIC_OPENFEEDBACK_PROJECT_ID` | Client + Server | UUID of your project in the `projects` table |
-| `OPENFEEDBACK_HMAC_SECRET` | **Server only** | HMAC secret for signing write requests. Must never reach the browser. |
+### Step 4: Add the Proxy Route (Server Setup)
 
-> **Security:** Variables prefixed with `NEXT_PUBLIC_` are bundled into the client. `OPENFEEDBACK_HMAC_SECRET` has no prefix, so it only exists on the server (Server Actions, API routes).
+To keep your app secure and prevent forged votes, OpenFeedback routes all write requests through your Next.js backend. 
 
----
-
-## Quick Start (Next.js App Router)
-
-### 1. Create the server-side proxy route
-
-The proxy handles HMAC signing on the server. The `hmacSecret` never leaves this context.
+Create a new file at `app/api/openfeedback/route.ts` (App Router):
 
 ```typescript
 // app/api/openfeedback/route.ts
 import { OpenFeedbackProxy } from "@openfeedback/client/next";
+import { auth } from "@/auth"; // Replace with your actual auth fetcher (NextAuth, Clerk, Supabase, etc.)
 
 export const POST = OpenFeedbackProxy({
   projectId: process.env.NEXT_PUBLIC_OPENFEEDBACK_PROJECT_ID!,
   hmacSecret: process.env.OPENFEEDBACK_HMAC_SECRET!,
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  
+  // This securely resolves the user's identity on the server side
   getUser: async () => {
-    // Replace with your auth (NextAuth, Clerk, Supabase Auth, etc.)
-    const session = await getSession();
+    const session = await auth(); 
     return session?.user?.id || null;
   },
 });
 ```
 
-### 2. Mount the provider and render feedback
+### Step 5: Quickstart UI (Client Setup)
+
+You are ready! Let's build a functional Feedback Board. You can completely copy and paste this file to get started immediately:
 
 ```tsx
-// app/feedback/page.tsx (Server Component)
-import { FeedbackBoard } from "@/components/FeedbackBoard";
+// app/feedback/page.tsx
+"use client";
+
+import { 
+  OpenFeedbackProvider, 
+  useSuggestions, 
+  useVote, 
+  useSubmitSuggestion 
+} from "@openfeedback/react";
 
 const config = {
   projectId: process.env.NEXT_PUBLIC_OPENFEEDBACK_PROJECT_ID!,
   apiUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
 };
 
+// 1. Wrap your UI in the Provider
 export default function FeedbackPage() {
   return (
-    <FeedbackBoard
-      config={config}
+    <OpenFeedbackProvider 
+      config={config} 
       anonKey={process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}
-      userId="user-id-from-your-auth"
-      userEmail="user@example.com" // Optional: enables TrustBadge
-    />
-  );
-}
-```
-
-```tsx
-// components/FeedbackBoard.tsx (Client Component)
-"use client";
-import {
-  OpenFeedbackProvider,
-  useSuggestions,
-  useVote,
-  useSubmitSuggestion,
-  SuggestionSearch,
-  TrustBadge,
-  type OpenFeedbackConfig,
-} from "@openfeedback/react";
-
-export function FeedbackBoard({ config, anonKey, userId, userEmail }) {
-  return (
-    <OpenFeedbackProvider config={config} anonKey={anonKey}>
-      {/* Your feedback UI here. Use the hooks: */}
-      {/* useSuggestions()        — read suggestions */}
-      {/* useVote()               — cast/remove votes */}
-      {/* useSubmitSuggestion()   — create suggestions */}
-      {/* useSearchSuggestions()  — debounced client-side search */}
-      {/* <SuggestionSearch />    — search input with dropdown */}
-      {/* <TrustBadge />          — masked email badge */}
+    >
+      <div className="max-w-2xl mx-auto p-6 bg-white rounded-xl shadow-sm border border-gray-200">
+        <h1 className="text-2xl font-bold mb-6 text-gray-900">Feature Requests</h1>
+        
+        <SubmitForm />
+        
+        <div className="mt-8 border-t border-gray-100 pt-8">
+          <SuggestionList />
+        </div>
+      </div>
     </OpenFeedbackProvider>
   );
 }
+
+// 2. Component to create new suggestions
+function SubmitForm() {
+  const { submit } = useSubmitSuggestion();
+
+  return (
+    <form 
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        await submit({
+          title: formData.get("title") as string,
+          description: formData.get("description") as string,
+        });
+        e.currentTarget.reset();
+      }}
+      className="flex flex-col gap-3"
+    >
+      <input 
+        name="title" 
+        placeholder="Suggest a new feature..." 
+        required
+        className="border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+      />
+      <textarea 
+        name="description" 
+        placeholder="Why do you need this?" 
+        rows={3}
+        className="border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+      />
+      <button 
+        type="submit" 
+        className="bg-black text-white font-medium px-4 py-2 rounded self-start hover:bg-gray-800 transition-colors"
+      >
+        Submit Request
+      </button>
+    </form>
+  );
+}
+
+// 3. Component to list and vote on suggestions
+function SuggestionList() {
+  const { suggestions, isLoading } = useSuggestions({ orderBy: "upvotes" });
+  const { vote, isVotingOn } = useVote();
+
+  if (isLoading) return <p className="text-gray-500">Loading suggestions...</p>;
+  if (!suggestions?.length) return <p className="text-gray-500">No suggestions yet. Be the first to add one!</p>;
+
+  return (
+    <ul className="flex flex-col gap-4">
+      {suggestions.map((s: any) => (
+        <li key={s.id} className="flex items-start gap-4 p-4 border border-gray-100 rounded-lg relative bg-gray-50">
+          <button 
+            onClick={() => vote(s.id, "up")}
+            disabled={isVotingOn === s.id}
+            className="flex flex-col items-center justify-center p-2 bg-white border border-gray-200 rounded-md hover:bg-gray-100 min-w-[3rem] transition-colors disabled:opacity-50"
+          >
+            <span className="text-lg leading-none">▲</span>
+            <span className="font-bold text-gray-800 mt-1">{s.upvotes}</span>
+          </button>
+          
+          <div>
+            <h3 className="font-semibold text-gray-900">{s.title}</h3>
+            <p className="text-sm text-gray-600 mt-1">{s.description}</p>
+            <span className="text-[10px] text-gray-500 mt-3 block uppercase font-mono font-bold tracking-wider">
+              Status: {s.status}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
 ```
 
-### 3. Use the hooks
-
-```tsx
-// Read suggestions (public, no auth required)
-const { suggestions, isLoading, refetch } = useSuggestions({ orderBy: "upvotes" });
-
-// Vote (auth handled by the proxy route)
-const { vote } = useVote();
-await vote(suggestionId, "up", { signature, nonce, timestamp });
-
-// Submit a new suggestion
-const { submit } = useSubmitSuggestion();
-await submit({ title: "Dark mode", description: "Please add dark mode support" });
-
-// Search existing suggestions (client-side, debounced)
-const { results, isSearching } = useSearchSuggestions({ query: "dark mode" });
-```
+That's it! You now have a working, real-time feedback system embedded directly in your SaaS. No crypto parameters required on the client, and all mutations are safely securely verified in your Next.js proxy route before they hit your Supabase Edge Functions.
 
 ---
 
-## Architecture
+## 📚 Advanced Documentation
 
-```
-Browser (Client Components)                    Server (Next.js)
-┌─────────────────────────┐                   ┌─────────────────────────────┐
-│ <OpenFeedbackProvider>  │                   │ /api/openfeedback (Proxy)   │
-│                         │                   │                             │
-│  useSuggestions() ──────┼── GET /rest/v1 ──►│                             │
-│                         │                   │  1. Verify user session     │
-│  useVote()         ─────┼── POST /proxy ───►│  2. Build JSON body         │
-│  useSubmitSuggestion()  │                   │  3. HMAC-SHA256(body, key)  │
-│                         │                   │  4. Forward to Edge Fn      │
-│  <SuggestionSearch />   │                   └──────────────┬──────────────┘
-│  <TrustBadge />         │                                  │
-└─────────────────────────┘                                  ▼
-                                              ┌─────────────────────────────┐
-                                              │ Supabase                    │
-                                              │                             │
-                                              │  Edge Functions:            │
-                                              │    submit-vote              │
-                                              │    submit-suggestion        │
-                                              │                             │
-                                              │  PostgreSQL (RLS):          │
-                                              │    projects                 │
-                                              │    suggestions              │
-                                              │    votes (user_hash only)   │
-                                              │    pseudonymous_vault       │
-                                              └─────────────────────────────┘
-```
-
-**Key security invariant:** The HMAC secret never reaches the browser. The proxy route signs every write request server-side. Edge Functions verify the signature with constant-time comparison before touching the database.
-
----
-
-## Monorepo Structure
-
-```
-packages/
-  react/       @openfeedback/react     React SDK: Provider, hooks, headless components
-  client/      @openfeedback/client    Vanilla JS client, Zod schemas, types
-               @openfeedback/client/server  Node.js-only HMAC signing utilities
-               @openfeedback/client/next    Next.js proxy route helper
-  cli/         @openfeedback/cli       CLI: openfeedback sync, openfeedback changelog
-
-apps/
-  demo-app/       Reference Next.js implementation
-  web-dashboard/  Admin panel for managing suggestions
-  docs/           Technical documentation
-```
-
-### SDK Exports (`@openfeedback/react`)
-
-| Export | Type | Description |
-|--------|------|-------------|
-| `OpenFeedbackProvider` | Component | Context provider (wraps your feedback UI) |
-| `SuggestionSearch` | Component | Headless search input with dropdown (Shadcn-style) |
-| `TrustBadge` | Component | Masked email + lock icon micro-copy |
-| `useSuggestions` | Hook | Read suggestions list |
-| `useVote` | Hook | Cast or remove a vote |
-| `useSubmitSuggestion` | Hook | Create a new suggestion |
-| `useSearchSuggestions` | Hook | Debounced client-side search over cached suggestions |
-| `cn` | Utility | `clsx` + `tailwind-merge` class merger |
-| `maskEmail` | Utility | `"user@example.com"` &rarr; `"u***r@example.com"` |
-
----
-
-## Development Commands
-
-```bash
-pnpm install          # Install all workspace dependencies
-pnpm build            # Build all packages (Turborepo)
-pnpm dev              # Dev mode with watch
-pnpm type-check       # TypeScript checking across all packages
-pnpm clean            # Clean dist/ and node_modules/
-
-# Single package
-pnpm --filter @openfeedback/react build
-pnpm --filter @openfeedback/client build
-pnpm --filter @openfeedback/cli build
-pnpm --filter @openfeedback/demo-app dev   # http://localhost:3099
-```
-
----
-
-## CLI: Roadmap as Code
-
-The `@openfeedback/cli` package syncs suggestion statuses between a `ROADMAP.md` file and the database.
-
-```bash
-# Preview changes without writing
-openfeedback sync --dry-run
-
-# Apply status changes to the database
-openfeedback sync
-
-# Scan git history for suggestion references
-openfeedback changelog --since v1.0.0
-```
-
-The CLI requires three environment variables: `OPENFEEDBACK_API_URL`, `OPENFEEDBACK_SERVICE_KEY`, and `OPENFEEDBACK_PROJECT_ID`. See [CLI documentation](./apps/docs/cli.md) for full details.
-
----
-
-## License
-
-The core engine and SDKs are licensed under the [MIT License](LICENSE).
+See the `apps/docs` and `docs` folders for detailed guides on:
+- Edge Functions (`apps/docs/database-setup.md`)
+- Proxy Auth Internal Architecture (`docs/architecture/proxy-auth.md`)
+- Custom UI Primitives and Advanced Usage
+- Configuring the CLI for Roadmap Sync (`ROADMAP.md` syncing)

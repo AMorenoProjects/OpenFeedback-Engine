@@ -31,3 +31,32 @@ En lugar de delegar las operaciones criptográficas al código del host app manu
 - **Mitigación de Oracle Attack:** Es imposible que el cliente frontend falsifique la identidad, ya que el payload enviado a Supabase contiene un `user_id` inyectado 100% en el servidor mediante sesiones seguras del host.
 - **Zero Crypto:** Los desarrolladores no ven hashes, firmas o nonces. Solo proveen su secreto como variable de entorno al inicializar el handler.
 - **Transparencia:** Para el navegador, parece que simplemente está interactuando con una API REST normal `/api/openfeedback`. Todo el "Stateless Signed Auth" que va hacia el OpenFeedback Engine de fondo es invisible.
+
+## Migración: API de Hooks (antes vs. ahora)
+
+Con la introducción del Proxy, la firma de los hooks cambió para eliminar los parámetros criptográficos que el desarrollador tenía que pasar manualmente.
+
+### Antes (pre-Proxy, deprecado)
+
+```tsx
+// El desarrollador debía generar y pasar signature, nonce y timestamp
+const { vote } = useVote();
+await vote(suggestionId, "up", { signature, nonce, timestamp });
+```
+
+### Ahora (con Proxy Route Handler)
+
+```tsx
+// La criptografía es transparente — el Proxy la maneja server-side
+const { vote, isVotingOn } = useVote();
+await vote(suggestionId, "up");
+```
+
+| Hook                   | Parámetros criptográficos | Notas                                      |
+| ---------------------- | ------------------------- | ------------------------------------------ |
+| `useVote`              | Eliminados                | Solo `(suggestionId, direction)`.          |
+| `useSubmitSuggestion`  | Eliminados                | Solo `{ title, description }`.             |
+| `useSuggestions`       | Nunca los tuvo            | Lectura pública, sin autenticación.        |
+| `useSearchSuggestions` | Nunca los tuvo            | Filtrado client-side sobre datos públicos. |
+
+> **Nota:** Si encuentras ejemplos antiguos que pasan `{ signature, nonce, timestamp }` a un hook, son obsoletos. La API actual no acepta esos parámetros — toda la autenticación ocurre de forma transparente en el Proxy Route Handler.
